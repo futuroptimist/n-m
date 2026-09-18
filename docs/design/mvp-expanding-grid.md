@@ -222,12 +222,12 @@ A conceptual persisted state is:
 }
 ```
 
-Use non-negative integer exponents (and `null` for empty cells), not floating-
-point displayed values. Validate that the board is square, dimensions match the
-growth formula, exponents are positive safe integers, `activeK` is in range, and
-`highestMergedExponent` is consistent enough to prevent accidental board
-shrinkage. Do not use bit shifts or other bitwise arithmetic: JavaScript bitwise
-operations impose signed 32-bit behavior.
+Use positive safe integer exponents (`e >= 1`) and `null` for empty cells, not
+floating-point displayed values. Validate that the board is square, dimensions
+match the growth formula, exponents are positive safe integers, `activeK` is in
+range, and `highestMergedExponent` is consistent enough to prevent accidental
+board shrinkage. Do not use bit shifts or other bitwise arithmetic: JavaScript
+bitwise operations impose signed 32-bit behavior.
 
 Displayed values can exceed `Number.MAX_SAFE_INTEGER`; format `2^e` with
 `BigInt` (`1n << BigInt(e)` is acceptable because BigInt shifts are not 32-bit)

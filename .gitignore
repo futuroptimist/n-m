@@ -48,6 +48,7 @@ ios/build/
 *.keystore
 *.p12
 *.pfx
+*.p8
 *.mobileprovision
 *.cer
 *.der
