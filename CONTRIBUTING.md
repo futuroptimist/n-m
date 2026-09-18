@@ -5,10 +5,10 @@ welcome. Keep each change focused so it is easy to understand and review.
 
 ## Current repository setup
 
-The repository currently contains the MVP specification and lightweight
-documentation checks; it does not contain a playable app. Install
-[Node.js 22 LTS](https://nodejs.org/) with its bundled npm, clone the
-repository, and run:
+The repository contains the MVP specification and a minimal Expo application
+shell; it does not contain gameplay yet. Install
+[Node.js 24](https://nodejs.org/) with its bundled npm, clone the repository,
+and run:
 
 ```sh
 npm ci
@@ -17,8 +17,8 @@ git diff --check
 ```
 
 `npm ci` installs exactly the versions in `package-lock.json`. `npm run check`
-checks Prettier formatting and Markdown lint rules. To apply formatting, run
-`npm run format`, then repeat the checks.
+checks Prettier formatting, Markdown and application lint rules, and TypeScript.
+To apply formatting, run `npm run format`, then repeat the checks.
 
 ## Making a contribution
 
@@ -35,15 +35,14 @@ checks Prettier formatting and Markdown lint rules. To apply formatting, run
 Do not commit `.env` files, API tokens, signing certificates, provisioning
 profiles, keystores, or passwords.
 
-## Future mobile development
+## Mobile development
 
-After a separately scoped Expo application scaffold is added, its package
-scripts will document the additional unit, type, and app checks. Expo is the
-planned iteration environment. Test interaction changes on representative iOS
-and Android devices or simulators; iOS native/simulator work needs macOS and
-Xcode, while Android verification needs the Android SDK/emulator or a device.
-Hosted build services may help with distribution but are not required for local
-contributions. Until those commands actually exist, do not claim to have run
-app, native, or device tests.
+Use `npm start` to start Expo for a development-build client. On macOS with
+Xcode installed, `npx expo run:ios` creates and runs a local development build.
+Do not commit the generated `ios/` or `android/` directories. Test interaction
+changes on representative iOS and Android devices or simulators; iOS
+native/simulator work needs macOS and Xcode, while Android verification needs
+the Android SDK/emulator or a device. Do not claim to have run app, native, or
+device checks that the available environment could not support.
 
 Contributions are provided under the repository's [MIT License](LICENSE).
