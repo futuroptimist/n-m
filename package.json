@@ -1,0 +1,20 @@
+{
+  "name": "n-m",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Design documentation and repository tooling for the n^m puzzle game",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:md": "markdownlint-cli2",
+    "check": "npm run format:check && npm run lint:md"
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "0.23.2",
+    "prettier": "3.9.8"
+  }
+}

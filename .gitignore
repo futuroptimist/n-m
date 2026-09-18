@@ -1,0 +1,58 @@
+# npm dependencies and package-manager diagnostics
+node_modules/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Expo and Metro caches
+.expo/
+.expo-shared/
+.metro-health-check*
+.react-native/
+
+# Generated bundles, coverage, and build output
+dist/
+build/
+coverage/
+web-build/
+*.tsbuildinfo
+
+# Native dependency/build output (not native source)
+android/.gradle/
+android/app/build/
+android/build/
+ios/Pods/
+ios/build/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Expo prebuild may eventually generate ios/ and android/. Do not ignore those
+# directories wholesale: the project may intentionally commit native source.
+
+# Logs and operating-system/editor state
+*.log
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local environment and secret files; allow documented examples
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Mobile signing credentials and provisioning material
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.mobileprovision
+*.cer
+*.der
+*.key
+*.pem
+credentials.json
+google-services.json
+GoogleService-Info.plist
