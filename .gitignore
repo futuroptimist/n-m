@@ -1,0 +1,50 @@
+# Dependencies and package-manager caches
+node_modules/
+.npm/
+
+# Expo and Metro caches
+.expo/
+.expo-shared/
+.metro-health-check*
+
+# Generated output
+dist/
+build/
+coverage/
+web-build/
+*.tsbuildinfo
+
+# Logs and diagnostics
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local environment overrides (templates such as .env.example remain tracked)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# OS and editor state
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Signing credentials and provisioning artifacts
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+*.provisionprofile
+*.cer
+*.der
+
+# Expo managed native projects are assumed generated until the project chooses
+# prebuild/bare workflows. Remove these entries if ios/ or android/ becomes
+# intentionally maintained source.
+/ios/
+/android/
