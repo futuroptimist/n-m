@@ -23,7 +23,7 @@
 
 ## Verification
 
-For the current documentation-and-tooling repository, run:
+For documentation, tooling, and application changes, run:
 
 ```sh
 npm ci
@@ -31,12 +31,13 @@ npm run check
 git diff --check
 ```
 
-Use `npm run format` before the checks when files need formatting. After the
-mobile application exists, also run its documented engine/unit checks and use
-Expo on relevant devices. UI, gesture, accessibility, persistence, or native
-changes require appropriate device/simulator checks; native iOS checks require
-macOS/Xcode, and Android checks require the documented Android tooling. State
-precisely when those environments are unavailable.
+Use `npm run format` before the checks when files need formatting. Run
+`npx expo config --type public` after changing Expo configuration. Also run
+documented engine/unit checks as they are added and use Expo on relevant
+devices. UI, gesture, accessibility, persistence, or native changes require
+appropriate device/simulator checks; native iOS checks require macOS/Xcode, and
+Android checks require the documented Android tooling. State precisely when
+those environments are unavailable.
 
 ## Security and repository hygiene
 

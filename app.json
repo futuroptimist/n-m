@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "n^m",
+    "slug": "n-m",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-dev-client"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.futuroptimist.nm"
+    },
+    "android": {
+      "package": "com.futuroptimist.nm"
+    }
+  }
+}
