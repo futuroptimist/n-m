@@ -2,24 +2,41 @@
   "name": "n-m",
   "version": "0.0.0",
   "private": true,
-  "description": "Design documentation and repository tooling for the n^m puzzle game",
+  "description": "Expo-managed React Native application for the n^m puzzle game",
   "license": "MIT",
   "engines": {
     "node": ">=22 <25"
   },
   "scripts": {
+    "start": "expo start --dev-client",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:md": "markdownlint-cli2",
-    "check": "npm run format:check && npm run lint:md"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run format:check && npm run lint:md && npm run lint && npm run typecheck"
   },
   "devDependencies": {
+    "@types/react": "~19.2.4",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~57.0.2",
+    "eslint-import-resolver-typescript": "^4.4.5",
     "markdownlint-cli2": "0.23.2",
-    "prettier": "3.9.8"
+    "prettier": "3.9.8",
+    "typescript": "~6.0.3"
   },
   "overrides": {
     "markdownlint-cli2": {
       "smol-toml": "1.8.0"
     }
-  }
+  },
+  "dependencies": {
+    "expo": "~57.0.24",
+    "expo-dev-client": "~57.0.19",
+    "react": "^19.2.3",
+    "react-native": "^0.86.3"
+  },
+  "main": "index.ts"
 }
