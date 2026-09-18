@@ -1,0 +1,37 @@
+# Dependencies and package-manager caches
+node_modules/
+.npm/
+
+# Expo and Metro caches
+.expo/
+.expo-shared/
+.metro-health-check*
+
+# Generated output
+dist/
+build/
+web-build/
+coverage/
+
+# Logs and local configuration
+*.log
+.env
+.env.*
+!.env.example
+
+# OS and editor state
+.DS_Store
+*.swp
+
+# Signing credentials and provisioning material
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+
+# The planned Expo application will use generated native projects. Keep them
+# ignored unless the project deliberately adopts Expo's bare/prebuild workflow.
+android/
+ios/
