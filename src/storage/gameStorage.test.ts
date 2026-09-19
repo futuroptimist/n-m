@@ -178,6 +178,8 @@ test('classifies malformed, unsupported, and newer saves without changing them',
     ['{', 'invalid'],
     [saved({ schemaVersion: 0 }), 'invalid'],
     [saved({ schemaVersion: 2 }), 'newer-version'],
+    [saved({ schemaVersion: 1e400 }), 'invalid'],
+    [saved({ schemaVersion: 1.5 }), 'invalid'],
   ] as const;
   for (const [value, reason] of cases) {
     const store = new MemoryStore();
