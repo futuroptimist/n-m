@@ -5,20 +5,31 @@ welcome. Keep each change focused so it is easy to understand and review.
 
 ## Current repository setup
 
-The repository currently contains the MVP specification and lightweight
-documentation checks; it does not contain a playable app. Install
-[Node.js 22 LTS](https://nodejs.org/) with its bundled npm, clone the
-repository, and run:
+The repository contains the MVP specification and a minimal Expo-managed React
+Native and TypeScript application shell. The current screen verifies that the
+mobile foundation runs, but it does not contain gameplay yet. Install
+[Node.js 24](https://nodejs.org/) with its bundled npm, clone the repository,
+and run:
 
 ```sh
+nvm install 24
+nvm use 24
 npm ci
 npm run check
+npx expo config --type public
 git diff --check
 ```
 
 `npm ci` installs exactly the versions in `package-lock.json`. `npm run check`
-checks Prettier formatting and Markdown lint rules. To apply formatting, run
-`npm run format`, then repeat the checks.
+checks Prettier formatting, Markdown and application lint rules, and TypeScript.
+To apply formatting, run `npm run format`, then repeat the checks.
+
+Start the Expo development server with `npm start`. Use a compatible development
+build to open the app. On macOS with Xcode and an iOS Simulator installed, you
+can generate and run a local development build with `npx expo run:ios`. Android
+development builds similarly require the Android SDK and an emulator or device.
+These commands generate native projects through Expo CNG; do not commit the
+generated `ios/` or `android/` directories.
 
 ## Making a contribution
 
@@ -35,15 +46,13 @@ checks Prettier formatting and Markdown lint rules. To apply formatting, run
 Do not commit `.env` files, API tokens, signing certificates, provisioning
 profiles, keystores, or passwords.
 
-## Future mobile development
+## Mobile development
 
-After a separately scoped Expo application scaffold is added, its package
-scripts will document the additional unit, type, and app checks. Expo is the
-planned iteration environment. Test interaction changes on representative iOS
-and Android devices or simulators; iOS native/simulator work needs macOS and
-Xcode, while Android verification needs the Android SDK/emulator or a device.
-Hosted build services may help with distribution but are not required for local
-contributions. Until those commands actually exist, do not claim to have run
-app, native, or device tests.
+Expo is the mobile iteration environment. Test interaction changes on
+representative iOS and Android devices or simulators; iOS native/simulator work
+needs macOS and Xcode, while Android verification needs the Android SDK/emulator
+or a device. Hosted build services may help with distribution but are not
+required for local contributions. Report exactly which app, native, and device
+checks you ran, and state when the required environment was unavailable.
 
 Contributions are provided under the repository's [MIT License](LICENSE).
