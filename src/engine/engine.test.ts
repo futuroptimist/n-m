@@ -27,8 +27,8 @@ function sequence(...samples: number[]): RandomSource {
 
 function state(
   board: Board,
-  activeK = 10,
-  highestCreatedExponent = 1,
+  activeK = board.length === 2 ? 10 : 1,
+  highestCreatedExponent = 1 + activeK * (board.length - 2),
   score = 0n,
 ): GameState {
   return {
@@ -238,6 +238,97 @@ test('no-op moves preserve state and consume no randomness', () => {
   assert.equal(calls, 0);
 });
 
+test('move rejects invalid runtime state before consuming randomness', () => {
+  const valid = state([
+    [1, null],
+    [null, 1],
+  ]);
+  const invalidStates: GameState[] = [
+    { ...valid, schemaVersion: 2 } as unknown as GameState,
+    { ...valid, activeK: 0 },
+    { ...valid, sideLength: 3 },
+    { ...valid, board: [[1, null], [null]] },
+    {
+      ...valid,
+      board: [
+        [1, null, null],
+        [null, 1, null],
+      ],
+    },
+    {
+      ...valid,
+      board: [
+        [0, null],
+        [null, 1],
+      ],
+    },
+    {
+      ...valid,
+      board: [
+        [Number.NaN, null],
+        [null, 1],
+      ],
+    },
+    { ...valid, highestCreatedExponent: 0 },
+    { ...valid, score: -1n },
+    { ...valid, score: 0 as unknown as bigint },
+    {
+      ...valid,
+      board: [
+        [3, null],
+        [null, 1],
+      ],
+    },
+    { ...valid, activeK: 1, highestCreatedExponent: 2 },
+  ];
+
+  for (const invalid of invalidStates) {
+    let calls = 0;
+    assert.throws(() =>
+      move(invalid, 'left', () => {
+        calls += 1;
+        return 0;
+      }),
+    );
+    assert.equal(calls, 0);
+  }
+});
+
+test('runtime validation permits a spawned 4 above an initial merge milestone', () => {
+  const result = move(
+    state([
+      [2, null],
+      [null, null],
+    ]),
+    'right',
+    sequence(0, 0),
+  );
+  assert.equal(result.moved, true);
+});
+
+test('board evaluation rejects malformed boards and invalid exponents', () => {
+  const invalidBoards: Board[] = [
+    [],
+    [[1, null], [null]],
+    [
+      [1, null, null],
+      [null, 1, null],
+    ],
+    [
+      [0, null],
+      [null, 1],
+    ],
+    [
+      [Number.POSITIVE_INFINITY, null],
+      [null, 1],
+    ],
+  ];
+  for (const board of invalidBoards) {
+    assert.throws(() => availableMoves(board));
+    assert.throws(() => isGameOver(board));
+  }
+});
+
 test('status evaluation distinguishes blocked and mergeable full boards', () => {
   const blocked: Board = [
     [1, 2],
@@ -252,10 +343,14 @@ test('status evaluation distinguishes blocked and mergeable full boards', () => 
   assert.equal(isGameOver(mergeable), false);
 
   const final = move(
-    state([
-      [1, 2],
-      [3, null],
-    ]),
+    state(
+      [
+        [1, 2],
+        [3, null],
+      ],
+      10,
+      3,
+    ),
     'right',
     sequence(0.95, 0),
   );

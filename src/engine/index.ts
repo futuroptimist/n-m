@@ -88,6 +88,7 @@ export function move(
   direction: Direction,
   random: RandomSource,
 ): MoveResult {
+  assertGameState(state);
   const size = state.board.length;
   const output = emptyBoard(size);
   const mergedExponents: number[] = [];
@@ -103,10 +104,15 @@ export function move(
 
   if (!changed) return { state, moved: false, events: [] };
 
-  const highestCreatedExponent = Math.max(
-    state.highestCreatedExponent,
-    ...mergedExponents,
-  );
+  let highestCreatedExponent = state.highestCreatedExponent;
+  const mergeEvents: Extract<EngineEvent, { type: 'merge' }>[] = [];
+  let scoreIncrease = 0n;
+  for (const mergedExponent of mergedExponents) {
+    highestCreatedExponent = Math.max(highestCreatedExponent, mergedExponent);
+    const value = tileValue(mergedExponent);
+    mergeEvents.push({ type: 'merge', exponent: mergedExponent, value });
+    scoreIncrease += value;
+  }
   const targetSize = Math.max(
     size,
     deriveGrowth(highestCreatedExponent, state.activeK).sideLength,
@@ -114,17 +120,6 @@ export function move(
   const grown = growBoard(output, targetSize);
   const exponent = randomSample(random) < 0.9 ? 1 : 2;
   const spawned = spawn(grown, exponent, random);
-  const mergeEvents = mergedExponents.map(
-    (mergedExponent): Extract<EngineEvent, { type: 'merge' }> => ({
-      type: 'merge',
-      exponent: mergedExponent,
-      value: tileValue(mergedExponent),
-    }),
-  );
-  const scoreIncrease = mergeEvents.reduce(
-    (total, event) => total + event.value,
-    0n,
-  );
   const status: GameStatus = isGameOver(spawned.board) ? 'game-over' : 'active';
   const events: EngineEvent[] = [{ type: 'move', direction }, ...mergeEvents];
   if (targetSize > size)
@@ -147,6 +142,7 @@ export function move(
 }
 
 export function availableMoves(board: Board): Direction[] {
+  assertBoard(board);
   return (['up', 'down', 'left', 'right'] as const).filter((direction) =>
     canMove(board, direction),
   );
@@ -260,5 +256,65 @@ function assertK(k: number): void {
 function assertExponent(exponent: number): void {
   if (!Number.isSafeInteger(exponent) || exponent < 1) {
     throw new RangeError('Tile exponent must be a positive safe integer');
+  }
+}
+
+function assertBoard(
+  board: Board,
+  expectedSideLength?: number,
+  highestCreatedExponent?: number,
+): void {
+  if (!Array.isArray(board) || board.length === 0) {
+    throw new RangeError('Board must be a non-empty square array');
+  }
+  const sideLength = board.length;
+  if (
+    expectedSideLength !== undefined &&
+    (!Number.isSafeInteger(expectedSideLength) ||
+      expectedSideLength < 1 ||
+      expectedSideLength !== sideLength)
+  ) {
+    throw new RangeError('Board dimensions must match sideLength');
+  }
+  for (const row of board) {
+    if (!Array.isArray(row) || row.length !== sideLength) {
+      throw new RangeError('Board must be square');
+    }
+    for (const cell of row) {
+      if (cell === null) continue;
+      assertExponent(cell);
+      if (
+        highestCreatedExponent !== undefined &&
+        cell >= 3 &&
+        cell > highestCreatedExponent
+      ) {
+        throw new RangeError(
+          'Board exponent cannot exceed highestCreatedExponent',
+        );
+      }
+    }
+  }
+}
+
+function assertGameState(state: GameState): void {
+  if (state === null || typeof state !== 'object') {
+    throw new TypeError('State must be an object');
+  }
+  if (state.schemaVersion !== ENGINE_SCHEMA_VERSION) {
+    throw new RangeError('Unsupported engine schema version');
+  }
+  assertK(state.activeK);
+  assertExponent(state.highestCreatedExponent);
+  if (typeof state.score !== 'bigint' || state.score < 0n) {
+    throw new RangeError('Score must be a non-negative bigint');
+  }
+  assertBoard(state.board, state.sideLength, state.highestCreatedExponent);
+  if (
+    state.sideLength !==
+    deriveGrowth(state.highestCreatedExponent, state.activeK).sideLength
+  ) {
+    throw new RangeError(
+      'sideLength must match growth derived from highestCreatedExponent and activeK',
+    );
   }
 }
