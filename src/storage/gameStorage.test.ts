@@ -110,6 +110,18 @@ test('serializes canonical decimal scores and rejects other score forms', () => 
     JSON.parse(serializeGame({ ...grownGame, score: 0n })).score,
     '0',
   );
+  assert.throws(
+    () => serializeGame({ ...grownGame, score: -1n }),
+    /Invalid score/,
+  );
+  assert.throws(
+    () =>
+      serializeGame({
+        ...grownGame,
+        score: 1 as unknown as bigint,
+      }),
+    /Invalid score/,
+  );
   for (const score of ['-1', '01', '+1', '1.0', '', 1]) {
     assert.throws(() => deserializeGame(saved({ score })), /Invalid score/);
   }
