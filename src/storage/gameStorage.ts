@@ -47,6 +47,9 @@ export class StorageOperationError extends Error {
 }
 
 export function serializeGame(game: GameState): string {
+  if (typeof game.score !== 'bigint' || game.score < 0n) {
+    throw new Error('Invalid score');
+  }
   // Deserializing our own representation applies the same validation used for
   // untrusted stored data and prevents writing an invalid engine state.
   const saved: SavedGameV1 = {
