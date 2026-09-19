@@ -164,6 +164,30 @@ test('classifies malformed, unsupported, and newer saves without changing them',
   }
 });
 
+test('rejects status mismatches during load without changing the save', async () => {
+  const cases = [
+    saved({ status: 'game-over' }),
+    saved({
+      board: [
+        [1, 2],
+        [2, 1],
+      ],
+      status: 'active',
+    }),
+  ];
+
+  for (const value of cases) {
+    const store = new MemoryStore();
+    store.values.set(GAME_STORAGE_KEY, value);
+
+    assert.deepEqual(await new GameStorage(store).load(), {
+      type: 'recovery',
+      reason: 'invalid',
+    });
+    assert.equal(store.values.get(GAME_STORAGE_KEY), value);
+  }
+});
+
 test('reports an empty store and clears only after an explicit discard', async () => {
   const store = new MemoryStore();
   const persistence = new GameStorage(store);
@@ -228,17 +252,20 @@ test('serializes writes so an older delayed write cannot win', async () => {
 test('serializes clear with saves in invocation order', async () => {
   const resolvers: (() => void)[] = [];
   const operations: string[] = [];
+  let storedValue: string | null = null;
   const store: AsyncKeyValueStore = {
     async getItem() {
-      return null;
+      return storedValue;
     },
-    async setItem() {
+    async setItem(_key, value) {
       operations.push('save');
       await new Promise<void>((resolve) => resolvers.push(resolve));
+      storedValue = value;
     },
     async removeItem() {
       operations.push('clear');
       await new Promise<void>((resolve) => resolvers.push(resolve));
+      storedValue = null;
     },
   };
   const persistence = new GameStorage(store);
@@ -258,6 +285,45 @@ test('serializes clear with saves in invocation order', async () => {
   assert.deepEqual(operations, ['save', 'clear', 'save']);
   resolvers.shift()!();
   await secondSave;
+  assert.equal(JSON.parse(storedValue!).score, '2');
+});
+
+test('continues queued operations after a failure', async () => {
+  const operations: string[] = [];
+  let storedValue: string | null = null;
+  let failNextSave = true;
+  const store: AsyncKeyValueStore = {
+    async getItem() {
+      return storedValue;
+    },
+    async setItem(_key, value) {
+      operations.push('save');
+      if (failNextSave) {
+        failNextSave = false;
+        throw new Error('write failed');
+      }
+      storedValue = value;
+    },
+    async removeItem() {
+      operations.push('clear');
+      storedValue = null;
+    },
+  };
+  const persistence = new GameStorage(store);
+  const failedSave = persistence.save({ ...grownGame, score: 1n });
+  const clear = persistence.clear();
+  const finalSave = persistence.save({ ...grownGame, score: 2n });
+
+  await assert.rejects(
+    failedSave,
+    (error: unknown) =>
+      error instanceof StorageOperationError && error.operation === 'write',
+  );
+  await clear;
+  await finalSave;
+
+  assert.deepEqual(operations, ['save', 'clear', 'save']);
+  assert.equal(JSON.parse(storedValue!).score, '2');
 });
 
 test('the pure Node test path does not import native AsyncStorage', async () => {
