@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  AppState,
   PanResponder,
   Pressable,
   ScrollView,
@@ -18,6 +20,8 @@ import {
   type GameState,
 } from '../engine';
 import { colors, spacing } from '../theme';
+import { gameStorage } from '../storage/asyncStorageAdapter';
+import type { RecoveryReason } from '../storage/gameStorage';
 
 const MIN_SWIPE_DISTANCE = 32;
 const CARDINAL_DOMINANCE = 1.5;
@@ -42,10 +46,146 @@ function swipeDirection(dx: number, dy: number): Direction | null {
 
 export function GameScreen() {
   const [pendingK, setPendingK] = useState(1);
-  const [game, setGame] = useState<GameState>(() => createGame(1, Math.random));
+  const [game, setGame] = useState<GameState | null>(null);
+  const [recoveryReason, setRecoveryReason] = useState<RecoveryReason | null>(
+    null,
+  );
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const gameRef = useRef<GameState | null>(null);
+
+  const persist = useCallback((state: GameState) => {
+    void gameStorage.save(state).then(
+      () => setStorageError(null),
+      () =>
+        setStorageError('Your game could not be saved. You can keep playing.'),
+    );
+  }, []);
+
+  const installGame = useCallback(
+    (state: GameState, shouldPersist: boolean) => {
+      gameRef.current = state;
+      setGame(state);
+      if (shouldPersist) persist(state);
+    },
+    [persist],
+  );
+
+  useEffect(() => {
+    let active = true;
+    void gameStorage.load().then((result) => {
+      if (!active) return;
+      if (result.type === 'recovery') {
+        setRecoveryReason(result.reason);
+        return;
+      }
+      if (result.type === 'restored') {
+        setPendingK(result.game.activeK);
+        installGame(result.game, false);
+        return;
+      }
+      installGame(createGame(1, Math.random), true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [installGame]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active' && gameRef.current !== null) {
+        persist(gameRef.current);
+      }
+    });
+    return () => subscription.remove();
+  }, [persist]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          swipeDirection(gesture.dx, gesture.dy) !== null,
+        onPanResponderRelease: (_, gesture) => {
+          const direction = swipeDirection(gesture.dx, gesture.dy);
+          if (direction === null) return;
+          setGame((current) => {
+            if (current === null || current.status === 'game-over')
+              return current;
+            const next = move(current, direction, Math.random).state;
+            if (next !== current) {
+              gameRef.current = next;
+              persist(next);
+            }
+            return next;
+          });
+        },
+      }),
+    [persist],
+  );
+
+  if (recoveryReason !== null) {
+    const newer = recoveryReason === 'newer-version';
+    return (
+      <View style={styles.centeredState}>
+        <Text accessibilityRole="header" style={styles.recoveryTitle}>
+          Saved game unavailable
+        </Text>
+        <Text style={styles.recoveryMessage}>
+          {newer
+            ? 'This save was created by a newer app version and cannot be opened here.'
+            : recoveryReason === 'read-error'
+              ? 'The saved game could not be read.'
+              : 'The saved game is invalid or incompatible.'}{' '}
+          It has not been changed.
+        </Text>
+        {storageError === null ? null : (
+          <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+            {storageError}
+          </Text>
+        )}
+        <Pressable
+          accessibilityLabel="Discard saved game and start a new game"
+          accessibilityRole="button"
+          onPress={() => {
+            setStorageError(null);
+            void gameStorage.clear().then(
+              () => {
+                const fresh = createGame(1, Math.random);
+                setPendingK(1);
+                setRecoveryReason(null);
+                installGame(fresh, true);
+              },
+              () => setStorageError('The saved game could not be discarded.'),
+            );
+          }}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.primaryButtonText}>
+            Discard save and start new
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (game === null) {
+    return (
+      <View
+        accessibilityLabel="Loading saved game"
+        style={styles.centeredState}
+      >
+        <ActivityIndicator color={colors.primary} size="large" />
+        <Text style={styles.recoveryMessage}>Loading saved game…</Text>
+      </View>
+    );
+  }
+
   const growth = deriveGrowth(game.highestCreatedExponent, game.activeK);
 
-  const beginNewGame = () => setGame(createGame(pendingK, Math.random));
+  const beginNewGame = () =>
+    installGame(createGame(pendingK, Math.random), true);
   const requestNewGame = () => {
     if (game.status === 'game-over') {
       beginNewGame();
@@ -60,23 +200,6 @@ export function GameScreen() {
       ],
     );
   };
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          swipeDirection(gesture.dx, gesture.dy) !== null,
-        onPanResponderRelease: (_, gesture) => {
-          const direction = swipeDirection(gesture.dx, gesture.dy);
-          if (direction === null) return;
-          setGame((current) => {
-            if (current.status === 'game-over') return current;
-            return move(current, direction, Math.random).state;
-          });
-        },
-      }),
-    [],
-  );
 
   return (
     <ScrollView
@@ -119,6 +242,12 @@ export function GameScreen() {
             {growth.sideLength + 1}×{growth.sideLength + 1}
           </Text>
         </View>
+
+        {storageError === null ? null : (
+          <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+            {storageError}
+          </Text>
+        )}
 
         <View
           {...panResponder.panHandlers}
@@ -226,6 +355,23 @@ function SettingButton({
 }
 
 const styles = StyleSheet.create({
+  centeredState: {
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    flex: 1,
+    gap: spacing.medium,
+    justifyContent: 'center',
+    padding: spacing.medium,
+  },
+  recoveryTitle: { color: colors.ink, fontSize: 26, fontWeight: '900' },
+  recoveryMessage: {
+    color: colors.mutedInk,
+    fontSize: 16,
+    lineHeight: 23,
+    maxWidth: 440,
+    textAlign: 'center',
+  },
+  errorText: { color: '#8b1e1e', fontSize: 15, lineHeight: 21 },
   screen: {
     alignItems: 'center',
     backgroundColor: colors.background,
