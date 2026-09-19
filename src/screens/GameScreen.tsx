@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   PanResponder,
   Pressable,
   ScrollView,
@@ -18,6 +19,13 @@ import {
   type GameState,
 } from '../engine';
 import { colors, spacing } from '../theme';
+import { gameStore } from '../storage/asyncStorageAdapter';
+import {
+  clearGame,
+  loadGame,
+  SerializedGameWriter,
+  type LoadGameResult,
+} from '../storage/gameStorage';
 
 const MIN_SWIPE_DISTANCE = 32;
 const CARDINAL_DOMINANCE = 1.5;
@@ -42,10 +50,123 @@ function swipeDirection(dx: number, dy: number): Direction | null {
 
 export function GameScreen() {
   const [pendingK, setPendingK] = useState(1);
-  const [game, setGame] = useState<GameState>(() => createGame(1, Math.random));
+  const [game, setGame] = useState<GameState | null>(null);
+  const [recovery, setRecovery] = useState<LoadGameResult | null>(null);
+  const [saveError, setSaveError] = useState(false);
+  const gameRef = useRef<GameState | null>(null);
+  const writer = useMemo(() => new SerializedGameWriter(gameStore), []);
+
+  useEffect(() => {
+    let mounted = true;
+    void loadGame(gameStore).then((result) => {
+      if (!mounted) return;
+      if (result.kind === 'recovery') {
+        setRecovery(result);
+        return;
+      }
+      const initial =
+        result.kind === 'loaded' ? result.game : createGame(1, Math.random);
+      gameRef.current = initial;
+      setGame(initial);
+      setPendingK(initial.activeK);
+      if (result.kind === 'empty') {
+        void writer.save(initial).catch(() => setSaveError(true));
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [writer]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' && gameRef.current !== null) {
+        void writer.save(gameRef.current).catch(() => setSaveError(true));
+      }
+    });
+    return () => subscription.remove();
+  }, [writer]);
+
+  useEffect(() => {
+    gameRef.current = game;
+  }, [game]);
+
+  const commitGame = useCallback(
+    (next: GameState) => {
+      setGame(next);
+      setSaveError(false);
+      void writer.save(next).catch(() => setSaveError(true));
+    },
+    [writer],
+  );
+
+  const panResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) =>
+      swipeDirection(gesture.dx, gesture.dy) !== null,
+    onPanResponderRelease: (_, gesture) => {
+      const direction = swipeDirection(gesture.dx, gesture.dy);
+      if (direction === null) return;
+      if (game === null || game.status === 'game-over') return;
+      const result = move(game, direction, Math.random);
+      if (result.moved) commitGame(result.state);
+    },
+  });
+
+  const discardSavedGame = () => {
+    void clearGame(gameStore)
+      .then(() => {
+        const initial = createGame(1, Math.random);
+        setRecovery(null);
+        setPendingK(1);
+        commitGame(initial);
+      })
+      .catch(() => setSaveError(true));
+  };
+
+  if (recovery?.kind === 'recovery') {
+    return (
+      <View style={styles.centeredState}>
+        <Text accessibilityRole="header" style={styles.settingsTitle}>
+          Saved game needs attention
+        </Text>
+        <Text style={styles.recoveryText}>{recovery.message}</Text>
+        <Text style={styles.recoveryText}>
+          Discard it to start a new game. It will not be changed automatically.
+        </Text>
+        {saveError ? (
+          <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+            The saved game could not be discarded. Please try again.
+          </Text>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          onPress={discardSavedGame}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.primaryButtonText}>
+            Discard save and start new
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (game === null) {
+    return (
+      <View style={styles.centeredState}>
+        <Text accessibilityLiveRegion="polite" style={styles.recoveryText}>
+          Loading saved game…
+        </Text>
+      </View>
+    );
+  }
+
   const growth = deriveGrowth(game.highestCreatedExponent, game.activeK);
 
-  const beginNewGame = () => setGame(createGame(pendingK, Math.random));
+  const beginNewGame = () => commitGame(createGame(pendingK, Math.random));
   const requestNewGame = () => {
     if (game.status === 'game-over') {
       beginNewGame();
@@ -61,29 +182,18 @@ export function GameScreen() {
     );
   };
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          swipeDirection(gesture.dx, gesture.dy) !== null,
-        onPanResponderRelease: (_, gesture) => {
-          const direction = swipeDirection(gesture.dx, gesture.dy);
-          if (direction === null) return;
-          setGame((current) => {
-            if (current.status === 'game-over') return current;
-            return move(current, direction, Math.random).state;
-          });
-        },
-      }),
-    [],
-  );
-
   return (
     <ScrollView
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.content}>
+        {saveError ? (
+          <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+            Progress could not be saved. You can keep playing; saving will
+            retry.
+          </Text>
+        ) : null}
         <View style={styles.header}>
           <Text
             accessibilityLabel="n to the power of m"
@@ -226,6 +336,27 @@ function SettingButton({
 }
 
 const styles = StyleSheet.create({
+  centeredState: {
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    flex: 1,
+    gap: spacing.medium,
+    justifyContent: 'center',
+    padding: spacing.medium,
+  },
+  recoveryText: {
+    color: colors.ink,
+    fontSize: 17,
+    lineHeight: 24,
+    maxWidth: 440,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#8b1e1e',
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   screen: {
     alignItems: 'center',
     backgroundColor: colors.background,
