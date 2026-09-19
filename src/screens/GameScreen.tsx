@@ -170,7 +170,9 @@ export function GameScreen() {
             Next game setting
           </Text>
           <Text style={styles.settingsDescription}>
-            {`Choose k for your next game. Your active game stays at k=${game.activeK}.`}
+            {'Choose k for your next game. Your active game stays at k=' +
+              game.activeK +
+              '.'}
           </Text>
           <View style={styles.stepper}>
             <SettingButton
