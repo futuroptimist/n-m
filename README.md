@@ -4,9 +4,10 @@
 has one mode: a square grid begins at 2×2 and grows when newly merged powers of
 two reach milestones controlled by the run's `k` setting.
 
-The repository includes a playable Expo-managed React Native and TypeScript app.
-Its game engine is a pure, platform-independent TypeScript module so rules can
-be tested without a device.
+The repository includes a minimal Expo-managed React Native and TypeScript app
+shell. It is not yet a playable application: the current screen only confirms
+that the mobile foundation runs. The planned game engine remains a pure,
+platform-independent TypeScript module so rules can be tested without a device.
 
 Read the [MVP expanding-grid design](docs/design/mvp-expanding-grid.md) for the
 complete behavior and proposed defaults. See [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -18,11 +19,7 @@ before making changes.
 | ---------------------------------- | ------------------------------------------------------------ |
 | `docs/design/`                     | Product and gameplay specifications.                         |
 | `docs/prompts/codex/`              | Reusable guidance for scoped Codex contributions.            |
-| `App.tsx`                          | Expo application entry point.                                |
-| `src/engine/`                      | Pure game rules and deterministic engine tests.              |
-| `src/screens/`                     | Playable game screen and interaction flow.                   |
-| `src/components/`                  | Reusable game-board presentation.                            |
-| `src/theme/`                       | Shared color and spacing tokens.                             |
+| `App.tsx`                          | Static, accessible Expo application shell.                   |
 | `app.json`                         | Expo managed-app configuration.                              |
 | `.github/workflows/ci.yml`         | Formatting, lint, and TypeScript checks.                     |
 | `.github/PULL_REQUEST_TEMPLATE.md` | Pull request checklist.                                      |
@@ -46,10 +43,10 @@ Start the Expo development server:
 npm start
 ```
 
-Open the app with a compatible development build. The app opens directly to the
-playable expanding-grid screen. Swipe the board or use the directional buttons
-to move tiles. On a Mac with Xcode and an iOS Simulator installed, create and
-run the local development build with:
+Open the app with a compatible development build. The shell displays the `n^m`
+identity and an “App shell ready” message; it intentionally has no game behavior
+yet. On a Mac with Xcode and an iOS Simulator installed, create and run the
+local development build with:
 
 ```sh
 npx expo run:ios
@@ -77,9 +74,8 @@ npm run lint:app
 npm run typecheck
 ```
 
-`format` writes formatting changes; the other commands only check files. The
-full check includes the deterministic engine test suite. Run it separately with
-`npm run test:engine`.
+`format` writes formatting changes; the other commands only check files. There
+is no game test command yet because gameplay has not been implemented.
 
 ## License
 
