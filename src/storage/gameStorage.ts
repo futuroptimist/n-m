@@ -156,6 +156,7 @@ export class GameStorage {
       if (
         isRecord(parsed) &&
         typeof parsed.schemaVersion === 'number' &&
+        Number.isSafeInteger(parsed.schemaVersion) &&
         parsed.schemaVersion > SAVE_SCHEMA_VERSION
       ) {
         return { type: 'recovery', reason: 'newer-version' };
