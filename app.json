@@ -12,6 +12,6 @@
     "android": {
       "package": "com.futuroptimist.nm"
     },
-    "plugins": ["expo-dev-client", "expo-status-bar"]
+    "plugins": ["expo-dev-client"]
   }
 }
