@@ -14,17 +14,20 @@
     "lint:md": "markdownlint-cli2",
     "lint:app": "eslint .",
     "typecheck": "tsc --noEmit",
-    "check": "npm run format:check && npm run lint:md && npm run lint:app && npm run typecheck",
+    "test:engine": "node --import tsx --test src/engine/*.test.ts",
+    "check": "npm run format:check && npm run lint:md && npm run lint:app && npm run typecheck && npm run test:engine",
     "start": "expo start --dev-client",
     "ios": "expo run:ios",
     "android": "expo run:android"
   },
   "devDependencies": {
+    "@types/node": "^24.13.6",
     "@types/react": "~19.2.4",
     "eslint": "^9.39.5",
     "eslint-config-expo": "^57.0.2",
     "markdownlint-cli2": "0.23.2",
     "prettier": "3.9.8",
+    "tsx": "^4.20.6",
     "typescript": "~6.0.3"
   },
   "overrides": {
