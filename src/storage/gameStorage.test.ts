@@ -79,6 +79,32 @@ test('round trips every persisted field with an exact bigint score', async () =>
   });
 });
 
+test('round trips a valid grown game-over run exactly', async () => {
+  const gameOver: GameState = {
+    schemaVersion: 1,
+    activeK: 2,
+    sideLength: 4,
+    board: [
+      [1, 2, 1, 2],
+      [2, 1, 2, 1],
+      [1, 2, 1, 2],
+      [2, 1, 2, 5],
+    ],
+    highestCreatedExponent: 5,
+    score: 9_007_199_254_740_993_123_456_789n,
+    status: 'game-over',
+  };
+  const store = new MemoryStore();
+  const persistence = new GameStorage(store);
+
+  await persistence.save(gameOver);
+
+  assert.deepEqual(await persistence.load(), {
+    type: 'restored',
+    game: gameOver,
+  });
+});
+
 test('serializes canonical decimal scores and rejects other score forms', () => {
   assert.equal(
     JSON.parse(serializeGame({ ...grownGame, score: 0n })).score,
