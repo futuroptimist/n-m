@@ -44,7 +44,7 @@ const grownGame: GameState = {
   ],
   highestCreatedExponent: 5,
   score: 9_007_199_254_740_993_123_456_789n,
-  status: 'game-over',
+  status: 'active',
 };
 
 function saved(overrides: Record<string, unknown> = {}): string {
@@ -109,6 +109,23 @@ test('rejects malformed JSON and invalid saved state fields', () => {
     /exponent/,
   );
   assert.throws(() => deserializeGame(saved({ status: 'paused' })), /status/);
+  assert.throws(
+    () => deserializeGame(saved({ status: 'game-over' })),
+    /Status does not match the board/,
+  );
+  assert.throws(
+    () =>
+      deserializeGame(
+        saved({
+          board: [
+            [1, 2],
+            [2, 1],
+          ],
+          status: 'active',
+        }),
+      ),
+    /Status does not match the board/,
+  );
   assert.throws(
     () =>
       deserializeGame(
@@ -206,6 +223,41 @@ test('serializes writes so an older delayed write cannot win', async () => {
     written.map((value) => JSON.parse(value).score),
     ['1', '2'],
   );
+});
+
+test('serializes clear with saves in invocation order', async () => {
+  const resolvers: (() => void)[] = [];
+  const operations: string[] = [];
+  const store: AsyncKeyValueStore = {
+    async getItem() {
+      return null;
+    },
+    async setItem() {
+      operations.push('save');
+      await new Promise<void>((resolve) => resolvers.push(resolve));
+    },
+    async removeItem() {
+      operations.push('clear');
+      await new Promise<void>((resolve) => resolvers.push(resolve));
+    },
+  };
+  const persistence = new GameStorage(store);
+  const firstSave = persistence.save({ ...grownGame, score: 1n });
+  const clear = persistence.clear();
+  const secondSave = persistence.save({ ...grownGame, score: 2n });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(operations, ['save']);
+  resolvers.shift()!();
+  await firstSave;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(operations, ['save', 'clear']);
+  resolvers.shift()!();
+  await clear;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(operations, ['save', 'clear', 'save']);
+  resolvers.shift()!();
+  await secondSave;
 });
 
 test('the pure Node test path does not import native AsyncStorage', async () => {

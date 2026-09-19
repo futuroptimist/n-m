@@ -1,6 +1,7 @@
 import {
   ENGINE_SCHEMA_VERSION,
   deriveGrowth,
+  isGameOver,
   type Board,
   type GameState,
   type GameStatus,
@@ -121,6 +122,9 @@ export function deserializeGame(serialized: string): GameState {
   ) {
     throw new Error('Board dimensions violate the growth invariant');
   }
+  if ((status === 'game-over') !== isGameOver(value.board as Board)) {
+    throw new Error('Status does not match the board');
+  }
 
   return {
     schemaVersion: ENGINE_SCHEMA_VERSION,
@@ -173,13 +177,14 @@ export class GameStorage {
     });
   }
 
-  async clear(): Promise<void> {
-    await this.writes;
-    try {
-      await this.store.removeItem(GAME_STORAGE_KEY);
-    } catch (cause) {
+  clear(): Promise<void> {
+    const clear = this.writes.then(() =>
+      this.store.removeItem(GAME_STORAGE_KEY),
+    );
+    this.writes = clear.catch(() => undefined);
+    return clear.catch((cause: unknown) => {
       throw new StorageOperationError('clear', { cause });
-    }
+    });
   }
 }
 
