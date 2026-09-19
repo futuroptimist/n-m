@@ -29,12 +29,11 @@ before making changes.
 
 ## Setup and quality checks
 
-Install Node.js 22 (the version selected by `.nvmrc`) with nvm, then install the
-locked dependencies with npm:
+Install Node.js 24 with nvm, then install the locked dependencies with npm:
 
 ```sh
-nvm install
-nvm use
+nvm install 24
+nvm use 24
 npm ci
 ```
 
@@ -73,11 +72,10 @@ npm run format:check
 npm run lint:md
 npm run lint:app
 npm run typecheck
-npm run test:engine
 ```
 
 `format` writes formatting changes; the other commands only check files. There
-is no device test command yet because the application shell has no playable UI.
+is no game test command yet because gameplay has not been implemented.
 
 ## License
 
