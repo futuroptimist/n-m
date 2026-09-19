@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AccessibilityInfo,
   Alert,
   AppState,
   PanResponder,
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 
 import { GameBoard } from '../components/GameBoard';
+import { selectMoveAnnouncement } from '../components/boardInteraction';
 import {
   createGame,
   deriveGrowth,
@@ -99,27 +101,37 @@ export function GameScreen() {
     return () => subscription.remove();
   }, [persist]);
 
+  const performMove = useCallback(
+    (direction: Direction) => {
+      setGame((current) => {
+        if (current === null || current.status === 'game-over') return current;
+        const result = move(current, direction, Math.random);
+        if (!result.moved) return current;
+        gameRef.current = result.state;
+        persist(result.state);
+        const announcement = selectMoveAnnouncement(result.events);
+        if (announcement !== null) {
+          AccessibilityInfo.announceForAccessibility(announcement);
+        }
+        return result.state;
+      });
+    },
+    [persist],
+  );
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gesture) =>
+          gesture.numberActiveTouches === 1 &&
           swipeDirection(gesture.dx, gesture.dy) !== null,
         onPanResponderRelease: (_, gesture) => {
           const direction = swipeDirection(gesture.dx, gesture.dy);
           if (direction === null) return;
-          setGame((current) => {
-            if (current === null || current.status === 'game-over')
-              return current;
-            const next = move(current, direction, Math.random).state;
-            if (next !== current) {
-              gameRef.current = next;
-              persist(next);
-            }
-            return next;
-          });
+          performMove(direction);
         },
       }),
-    [persist],
+    [performMove],
   );
 
   if (recoveryReason !== null) {
@@ -256,8 +268,22 @@ export function GameScreen() {
           <GameBoard game={game} />
         </View>
 
+        <View style={styles.movePanel}>
+          <Text accessibilityRole="header" style={styles.moveTitle}>
+            Move tiles
+          </Text>
+          <View style={styles.moveGrid}>
+            <View style={styles.moveSpacer} />
+            <MoveButton direction="up" onMove={performMove} symbol="↑" />
+            <View style={styles.moveSpacer} />
+            <MoveButton direction="left" onMove={performMove} symbol="←" />
+            <MoveButton direction="down" onMove={performMove} symbol="↓" />
+            <MoveButton direction="right" onMove={performMove} symbol="→" />
+          </View>
+        </View>
+
         {game.status === 'game-over' ? (
-          <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
+          <View style={styles.gameOverPanel}>
             <Text accessibilityRole="header" style={styles.gameOverTitle}>
               Game over
             </Text>
@@ -326,6 +352,27 @@ interface SettingButtonProps {
   label: string;
   onPress: () => void;
   symbol: string;
+}
+
+function MoveButton({
+  direction,
+  onMove,
+  symbol,
+}: {
+  direction: Direction;
+  onMove: (direction: Direction) => void;
+  symbol: string;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={`Move ${direction}`}
+      accessibilityRole="button"
+      onPress={() => onMove(direction)}
+      style={({ pressed }) => [styles.moveButton, pressed && styles.pressed]}
+    >
+      <Text style={styles.moveSymbol}>{symbol}</Text>
+    </Pressable>
+  );
 }
 
 function SettingButton({
@@ -428,6 +475,35 @@ const styles = StyleSheet.create({
   },
   gameOverTitle: { color: colors.ink, fontSize: 26, fontWeight: '900' },
   gameOverScore: { color: colors.ink, fontSize: 18, fontWeight: '700' },
+  movePanel: {
+    alignItems: 'center',
+    backgroundColor: colors.panel,
+    borderRadius: 12,
+    gap: spacing.small,
+    padding: 12,
+  },
+  moveTitle: { color: colors.ink, fontSize: 17, fontWeight: '800' },
+  moveGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    width: 144,
+  },
+  moveButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  moveSpacer: { height: 44, width: 44 },
+  moveSymbol: {
+    color: colors.white,
+    fontSize: 25,
+    fontWeight: '800',
+    lineHeight: 28,
+  },
   settingsPanel: {
     backgroundColor: colors.panel,
     borderRadius: 14,

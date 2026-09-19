@@ -172,21 +172,33 @@ animation necessary to understand the resulting board.
 
 ### Increasingly large boards on phones
 
-The rules impose no gameplay size cap, and tiles cannot shrink indefinitely.
-Render ordinary sizes as a fitted square grid down to a documented minimum
-touch/label size. Once the board would fall below that usability threshold,
-place it in a two-dimensional pan/zoom viewport with a stable minimum tile size,
-fit/reset control, clear edge indication, and accessibility alternatives for
-inspecting rows, columns, and values. Keep swipe-to-move distinct from viewport
-navigation—for example, use one-finger swipes for moves and two-finger gestures
-for pan/zoom, with accessible directional move buttons as a non-gesture option.
+The rules impose no gameplay size cap, and tiles cannot shrink indefinitely. As
+a **proposed interaction decision**, render the whole board as a fitted square
+while each tile is at least 44 logical points wide and tall. When fitting would
+make tiles smaller than that provisional threshold, use a clipped
+two-dimensional viewport whose initial tile target remains 44 points. Clamp
+panning so blank space cannot be exposed. Visible text identifies which top,
+right, bottom, and left board edges are in view, so location never depends on
+color alone. Visible, accessible controls zoom in, zoom out, and fit/reset the
+viewport.
 
-Prototype the threshold and gesture combination on small phones before locking
-them down. Virtualize or clip off-screen cells and avoid rendering work
-proportional to animations when boards become large. These presentation choices
-must not truncate engine state or create an undocumented maximum board size. If
-real device limits ultimately require a cap, that is a future gameplay-rule
-decision requiring specification and player-facing communication.
+One-finger cardinal swipes remain gameplay moves at every board size. Two-finger
+pan and pinch gestures navigate the oversized-board viewport. Accessible
+44-point directional controls invoke the same gameplay move path, while a board
+inspector steps independently through rows and columns and reports each exact
+value or “empty,” including cells outside the visual viewport. Live
+announcements are limited to score-changing merges, growth, and game over; game
+over takes priority when events coincide. Spawns, no-op gestures, and redraws
+are not announced.
+
+These threshold and gesture choices remain provisional until they are validated
+on the iPhone 13 Pro in the later physical-device acceptance step. That check
+must cover reachability, pinch/pan separation, screen-reader inspection, and
+system font scaling before the decisions are locked down. Clip off-screen cells
+and avoid animation-heavy work as boards become large. These presentation
+choices must not truncate engine state or create an undocumented maximum board
+size. If real device limits ultimately require a cap, that is a future gameplay-
+rule decision requiring specification and player-facing communication.
 
 ## Architecture and data
 
