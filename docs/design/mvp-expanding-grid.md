@@ -172,21 +172,36 @@ animation necessary to understand the resulting board.
 
 ### Increasingly large boards on phones
 
-The rules impose no gameplay size cap, and tiles cannot shrink indefinitely.
-Render ordinary sizes as a fitted square grid down to a documented minimum
-touch/label size. Once the board would fall below that usability threshold,
-place it in a two-dimensional pan/zoom viewport with a stable minimum tile size,
-fit/reset control, clear edge indication, and accessibility alternatives for
-inspecting rows, columns, and values. Keep swipe-to-move distinct from viewport
-navigation—for example, use one-finger swipes for moves and two-finger gestures
-for pan/zoom, with accessible directional move buttons as a non-gesture option.
+The rules impose no gameplay size cap, and tiles cannot shrink indefinitely. For
+the MVP, **the provisional minimum visual tile target is 44 logical points**.
+The board remains a fitted square while every tile can meet that threshold. Once
+fitting the whole board would make a tile smaller, the board uses a clipped
+two-dimensional viewport with tiles at least 44 points wide and tall. Off-screen
+cells are clipped rather than removed from engine state.
 
-Prototype the threshold and gesture combination on small phones before locking
-them down. Virtualize or clip off-screen cells and avoid rendering work
-proportional to animations when boards become large. These presentation choices
-must not truncate engine state or create an undocumented maximum board size. If
-real device limits ultimately require a cap, that is a future gameplay-rule
-decision requiring specification and player-facing communication.
+One-finger cardinal swipes always play the game. Two-finger pan and pinch
+gestures navigate and zoom the large-board viewport, with the viewport clamped
+to prevent exposing meaningless blank space. Visible zoom in, zoom out, and
+fit/reset controls provide a non-gesture viewport alternative. Text identifies
+the currently visible row and column range and names the visible board edges, so
+position is not conveyed by color alone. Immediate updates are preferred to
+animation-heavy viewport work.
+
+Accessible directional controls invoke the same move, persistence, and no-op
+path as swipes. A board inspector provides previous/next row and column controls
+and reports the selected coordinate's exact value or “empty”, independently of
+visual clipping and zoom. Live announcements are limited to score-changing
+merges, board growth, and game over; game over takes priority when events occur
+together. Ordinary spawns, no-op input, and redraws remain silent.
+
+The 44-point threshold and one-finger-play/two-finger-viewport combination are
+provisional interaction decisions, not new game rules. They must be validated
+later on the target iPhone 13 Pro during physical-device acceptance (Step 17),
+along with screen-reader focus order, viewport control usability, and inspector
+clarity. These presentation choices must not truncate engine state or create an
+undocumented maximum board size. If real device limits ultimately require a cap,
+that is a future gameplay-rule decision requiring specification and
+player-facing communication.
 
 ## Architecture and data
 
