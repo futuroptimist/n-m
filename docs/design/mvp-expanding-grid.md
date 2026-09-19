@@ -188,6 +188,31 @@ must not truncate engine state or create an undocumented maximum board size. If
 real device limits ultimately require a cap, that is a future gameplay-rule
 decision requiring specification and player-facing communication.
 
+For the MVP implementation, the following are **provisional proposed design
+decisions**, not new game rules:
+
+- Fit the complete square board while each tile receives at least 44 logical
+  points in each dimension. Below that threshold, clip the board in a square
+  two-dimensional viewport and retain a minimum 44-point tile target rather than
+  shrinking labels and controls further.
+- Keep one-finger cardinal swipes exclusively for gameplay. In the clipped
+  viewport, require two fingers for panning and pinch zooming, and clamp the
+  view so no meaningless space beyond the board can be exposed.
+- Show accessible zoom-in, zoom-out, and fit/reset controls, plus a textual,
+  non-color-only indication of the currently visible outer board edges.
+- Provide 44-point accessible directional move controls that use the same move
+  and save path as swipes. Provide a separate board inspector whose row and
+  column controls report the exact value or “empty” for any cell, independent of
+  the visual viewport.
+- Announce only score-changing merges, growth, and game over; prefer game over
+  when events coincide. Do not announce ordinary spawns, no-op moves, or board
+  redraws.
+
+The 44-point transition, one-finger-play/two-finger-viewport gesture split,
+control layout, clamping, and inspector usability must be validated on the
+iPhone 13 Pro during the later physical-device acceptance step before these
+provisional interaction choices are treated as settled.
+
 ## Architecture and data
 
 ### Pure engine boundary

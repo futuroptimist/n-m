@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AccessibilityInfo,
   Alert,
   AppState,
   PanResponder,
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 
 import { GameBoard } from '../components/GameBoard';
+import { announcementForEvents } from '../components/gameInteraction';
 import {
   createGame,
   deriveGrowth,
@@ -99,27 +101,36 @@ export function GameScreen() {
     return () => subscription.remove();
   }, [persist]);
 
+  const performMove = useCallback(
+    (direction: Direction) => {
+      const current = game;
+      if (current === null || current.status === 'game-over') return;
+      const result = move(current, direction, Math.random);
+      const announcement = announcementForEvents(result.events);
+      if (announcement !== null) {
+        AccessibilityInfo.announceForAccessibility(announcement);
+      }
+      if (result.state !== current) installGame(result.state, true);
+    },
+    [game, installGame],
+  );
+
   const panResponder = useMemo(
     () =>
+      // PanResponder invokes these stored handlers after render.
+      // eslint-disable-next-line react-hooks/refs
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
+        onMoveShouldSetPanResponder: (event, gesture) =>
+          event.nativeEvent.touches.length === 1 &&
           swipeDirection(gesture.dx, gesture.dy) !== null,
-        onPanResponderRelease: (_, gesture) => {
+        onPanResponderRelease: (event, gesture) => {
+          if (event.nativeEvent.touches.length > 1) return;
           const direction = swipeDirection(gesture.dx, gesture.dy);
           if (direction === null) return;
-          setGame((current) => {
-            if (current === null || current.status === 'game-over')
-              return current;
-            const next = move(current, direction, Math.random).state;
-            if (next !== current) {
-              gameRef.current = next;
-              persist(next);
-            }
-            return next;
-          });
+          performMove(direction);
         },
       }),
-    [persist],
+    [performMove],
   );
 
   if (recoveryReason !== null) {
@@ -256,8 +267,40 @@ export function GameScreen() {
           <GameBoard game={game} />
         </View>
 
+        <View style={styles.moveControls}>
+          <Text accessibilityRole="header" style={styles.moveControlsTitle}>
+            Move tiles
+          </Text>
+          <View style={styles.moveRow}>
+            {(['up', 'down', 'left', 'right'] as const).map((direction) => (
+              <Pressable
+                accessibilityLabel={`Move ${direction}`}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: game.status === 'game-over' }}
+                disabled={game.status === 'game-over'}
+                key={direction}
+                onPress={() => performMove(direction)}
+                style={({ pressed }) => [
+                  styles.moveButton,
+                  game.status === 'game-over' && styles.disabledButton,
+                  pressed && game.status !== 'game-over' && styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.moveButtonText,
+                    game.status === 'game-over' && styles.disabledText,
+                  ]}
+                >
+                  {direction[0].toUpperCase() + direction.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         {game.status === 'game-over' ? (
-          <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
+          <View style={styles.gameOverPanel}>
             <Text accessibilityRole="header" style={styles.gameOverTitle}>
               Game over
             </Text>
@@ -417,6 +460,29 @@ const styles = StyleSheet.create({
   },
   activeSetting: { color: colors.ink, fontSize: 16, fontWeight: '800' },
   milestone: { color: colors.mutedInk, fontSize: 16, marginTop: 4 },
+  moveControls: { gap: spacing.small },
+  moveControlsTitle: {
+    color: colors.ink,
+    fontSize: 17,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  moveRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.small,
+    justifyContent: 'center',
+  },
+  moveButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    justifyContent: 'center',
+    minHeight: 44,
+    minWidth: 88,
+    paddingHorizontal: 12,
+  },
+  moveButtonText: { color: colors.white, fontSize: 15, fontWeight: '700' },
   gameOverPanel: {
     alignItems: 'center',
     backgroundColor: colors.panel,
