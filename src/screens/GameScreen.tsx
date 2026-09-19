@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  AppState,
   PanResponder,
   Pressable,
   ScrollView,
@@ -18,6 +19,8 @@ import {
   type GameState,
 } from '../engine';
 import { colors, spacing } from '../theme';
+import { gameStorage } from '../storage/asyncStorage';
+import type { LoadResult } from '../storage';
 
 const MIN_SWIPE_DISTANCE = 32;
 const CARDINAL_DOMINANCE = 1.5;
@@ -42,7 +45,100 @@ function swipeDirection(dx: number, dy: number): Direction | null {
 
 export function GameScreen() {
   const [pendingK, setPendingK] = useState(1);
-  const [game, setGame] = useState<GameState>(() => createGame(1, Math.random));
+  const [game, setGame] = useState<GameState | null>(null);
+  const [hydration, setHydration] = useState<'loading' | 'ready' | 'recovery'>(
+    'loading',
+  );
+  const [recovery, setRecovery] = useState<LoadResult | null>(null);
+  const [storageError, setStorageError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    void gameStorage.load().then((result) => {
+      if (!mounted) return;
+      if (result.kind === 'loaded') {
+        setGame(result.game);
+        setPendingK(result.game.activeK);
+        setHydration('ready');
+      } else if (result.kind === 'empty') {
+        setGame(createGame(1, Math.random));
+        setHydration('ready');
+      } else {
+        setRecovery(result);
+        setHydration('recovery');
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hydration !== 'ready' || game === null) return;
+    void gameStorage.save(game).then((result) => {
+      if (!result.ok) setStorageError('Could not save this move.');
+      else setStorageError(null);
+    });
+  }, [game, hydration]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if ((state === 'inactive' || state === 'background') && game !== null) {
+        void gameStorage.save(game).then((result) => {
+          if (!result.ok) setStorageError('Could not save this game.');
+        });
+      }
+    });
+    return () => subscription.remove();
+  }, [game]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          swipeDirection(gesture.dx, gesture.dy) !== null,
+        onPanResponderRelease: (_, gesture) => {
+          const direction = swipeDirection(gesture.dx, gesture.dy);
+          if (direction === null) return;
+          setGame((current) => {
+            if (current === null || current.status === 'game-over') {
+              return current;
+            }
+            return move(current, direction, Math.random).state;
+          });
+        },
+      }),
+    [],
+  );
+
+  if (hydration === 'loading') return <LoadingScreen />;
+  if (hydration === 'recovery') {
+    const newer =
+      recovery?.kind === 'recovery' && recovery.reason === 'newer-schema';
+    return (
+      <RecoveryScreen
+        detail={
+          newer
+            ? 'This save was created by a newer app version and cannot be opened here.'
+            : 'The saved game could not be read or validated. It has not been changed.'
+        }
+        onDiscard={() => {
+          void gameStorage.clear().then((result) => {
+            if (!result.ok) {
+              setStorageError('Could not discard the saved game. Try again.');
+              return;
+            }
+            setGame(createGame(1, Math.random));
+            setPendingK(1);
+            setStorageError(null);
+            setHydration('ready');
+          });
+        }}
+        storageError={storageError}
+      />
+    );
+  }
+  if (game === null) return <LoadingScreen />;
   const growth = deriveGrowth(game.highestCreatedExponent, game.activeK);
 
   const beginNewGame = () => setGame(createGame(pendingK, Math.random));
@@ -60,23 +156,6 @@ export function GameScreen() {
       ],
     );
   };
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          swipeDirection(gesture.dx, gesture.dy) !== null,
-        onPanResponderRelease: (_, gesture) => {
-          const direction = swipeDirection(gesture.dx, gesture.dy);
-          if (direction === null) return;
-          setGame((current) => {
-            if (current.status === 'game-over') return current;
-            return move(current, direction, Math.random).state;
-          });
-        },
-      }),
-    [],
-  );
 
   return (
     <ScrollView
@@ -119,6 +198,12 @@ export function GameScreen() {
             {growth.sideLength + 1}×{growth.sideLength + 1}
           </Text>
         </View>
+
+        {storageError === null ? null : (
+          <Text accessibilityLiveRegion="polite" style={styles.storageError}>
+            {storageError} Your game remains playable.
+          </Text>
+        )}
 
         <View
           {...panResponder.panHandlers}
@@ -192,6 +277,53 @@ export function GameScreen() {
   );
 }
 
+function LoadingScreen() {
+  return (
+    <View style={styles.centeredScreen}>
+      <Text accessibilityLiveRegion="polite" style={styles.loadingText}>
+        Loading saved game…
+      </Text>
+    </View>
+  );
+}
+
+function RecoveryScreen({
+  detail,
+  onDiscard,
+  storageError,
+}: {
+  detail: string;
+  onDiscard: () => void;
+  storageError: string | null;
+}) {
+  return (
+    <View style={styles.centeredScreen}>
+      <View style={styles.recoveryPanel}>
+        <Text accessibilityRole="header" style={styles.gameOverTitle}>
+          Saved game needs attention
+        </Text>
+        <Text style={styles.recoveryText}>{detail}</Text>
+        {storageError === null ? null : (
+          <Text accessibilityLiveRegion="polite" style={styles.storageError}>
+            {storageError}
+          </Text>
+        )}
+        <Pressable
+          accessibilityLabel="Discard saved game and start a new game"
+          accessibilityRole="button"
+          onPress={onDiscard}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.primaryButtonText}>Discard and start new</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 interface SettingButtonProps {
   disabled: boolean;
   label: string;
@@ -226,6 +358,13 @@ function SettingButton({
 }
 
 const styles = StyleSheet.create({
+  centeredScreen: {
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.medium,
+  },
   screen: {
     alignItems: 'center',
     backgroundColor: colors.background,
@@ -271,6 +410,17 @@ const styles = StyleSheet.create({
   },
   activeSetting: { color: colors.ink, fontSize: 16, fontWeight: '800' },
   milestone: { color: colors.mutedInk, fontSize: 16, marginTop: 4 },
+  loadingText: { color: colors.ink, fontSize: 18, fontWeight: '700' },
+  recoveryPanel: {
+    backgroundColor: colors.panel,
+    borderRadius: 14,
+    gap: spacing.medium,
+    maxWidth: 440,
+    padding: spacing.medium,
+    width: '100%',
+  },
+  recoveryText: { color: colors.ink, fontSize: 16, lineHeight: 23 },
+  storageError: { color: '#8b1e1e', fontSize: 14, fontWeight: '700' },
   gameOverPanel: {
     alignItems: 'center',
     backgroundColor: colors.panel,
