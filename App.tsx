@@ -11,7 +11,7 @@ export default function App() {
           accessibilityRole="header"
           style={styles.title}
         >
-          n^m
+          nᵐ
         </Text>
         <Text style={styles.subtitle}>The expanding-grid puzzle</Text>
         <Text style={styles.message}>App shell ready</Text>
