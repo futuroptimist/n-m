@@ -177,6 +177,7 @@ test('classifies malformed, unsupported, and newer saves without changing them',
   const cases = [
     ['{', 'invalid'],
     [saved({ schemaVersion: 0 }), 'invalid'],
+    [saved({ schemaVersion: 1.5 }), 'invalid'],
     [saved({ schemaVersion: 2 }), 'newer-version'],
   ] as const;
   for (const [value, reason] of cases) {
