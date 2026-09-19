@@ -8,12 +8,12 @@ welcome. Keep each change focused so it is easy to understand and review.
 The repository contains the MVP specification and a minimal Expo-managed React
 Native and TypeScript application shell. The current screen verifies that the
 mobile foundation runs, but it does not contain gameplay yet. Install
-[Node.js 24](https://nodejs.org/) with its bundled npm (or use the checked-in
-`.nvmrc`), clone the repository, and run:
+[Node.js 24](https://nodejs.org/) with its bundled npm, clone the repository,
+and run:
 
 ```sh
 nvm install 24
-nvm use
+nvm use 24
 npm ci
 npm run check
 npx expo config --type public

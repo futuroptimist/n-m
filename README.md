@@ -29,11 +29,11 @@ before making changes.
 
 ## Setup and quality checks
 
-Install Node.js 22 with nvm, then install the locked dependencies with npm:
+Install Node.js 24 with nvm, then install the locked dependencies with npm:
 
 ```sh
-nvm install
-nvm use
+nvm install 24
+nvm use 24
 npm ci
 ```
 
