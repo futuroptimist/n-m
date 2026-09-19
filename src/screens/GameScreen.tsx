@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   PanResponder,
@@ -45,6 +45,13 @@ export function GameScreen() {
   const [game, setGame] = useState<GameState>(() => createGame(1, Math.random));
   const growth = deriveGrowth(game.highestCreatedExponent, game.activeK);
 
+  const play = useCallback((direction: Direction) => {
+    setGame((current) => {
+      if (current.status === 'game-over') return current;
+      return move(current, direction, Math.random).state;
+    });
+  }, []);
+
   const beginNewGame = () => setGame(createGame(pendingK, Math.random));
   const requestNewGame = () => {
     if (game.status === 'game-over') {
@@ -69,13 +76,10 @@ export function GameScreen() {
         onPanResponderRelease: (_, gesture) => {
           const direction = swipeDirection(gesture.dx, gesture.dy);
           if (direction === null) return;
-          setGame((current) => {
-            if (current.status === 'game-over') return current;
-            return move(current, direction, Math.random).state;
-          });
+          play(direction);
         },
       }),
-    [],
+    [play],
   );
 
   return (
@@ -127,6 +131,18 @@ export function GameScreen() {
           <GameBoard game={game} />
         </View>
 
+        <View accessibilityLabel="Directional move controls">
+          <Text style={styles.moveHelp}>Move tiles</Text>
+          <View style={styles.moveControls}>
+            <MoveButton direction="up" onPress={play} symbol="↑" />
+            <View style={styles.moveControlsRow}>
+              <MoveButton direction="left" onPress={play} symbol="←" />
+              <MoveButton direction="down" onPress={play} symbol="↓" />
+              <MoveButton direction="right" onPress={play} symbol="→" />
+            </View>
+          </View>
+        </View>
+
         {game.status === 'game-over' ? (
           <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
             <Text accessibilityRole="header" style={styles.gameOverTitle}>
@@ -154,8 +170,7 @@ export function GameScreen() {
             Next game setting
           </Text>
           <Text style={styles.settingsDescription}>
-            Choose k for your next game. Your active game stays at k=
-            {game.activeK}.
+            {`Choose k for your next game. Your active game stays at k=${game.activeK}.`}
           </Text>
           <View style={styles.stepper}>
             <SettingButton
@@ -188,6 +203,25 @@ export function GameScreen() {
         </View>
       </View>
     </ScrollView>
+  );
+}
+
+interface MoveButtonProps {
+  direction: Direction;
+  onPress: (direction: Direction) => void;
+  symbol: string;
+}
+
+function MoveButton({ direction, onPress, symbol }: MoveButtonProps) {
+  return (
+    <Pressable
+      accessibilityLabel={`Move ${direction}`}
+      accessibilityRole="button"
+      onPress={() => onPress(direction)}
+      style={({ pressed }) => [styles.moveButton, pressed && styles.pressed]}
+    >
+      <Text style={styles.moveButtonText}>{symbol}</Text>
+    </Pressable>
   );
 }
 
@@ -270,6 +304,28 @@ const styles = StyleSheet.create({
   },
   activeSetting: { color: colors.ink, fontSize: 16, fontWeight: '800' },
   milestone: { color: colors.mutedInk, fontSize: 16, marginTop: 4 },
+  moveHelp: {
+    color: colors.mutedInk,
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  moveControls: { alignItems: 'center', gap: 8, marginTop: 8 },
+  moveControlsRow: { flexDirection: 'row', gap: 8 },
+  moveButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    height: 48,
+    justifyContent: 'center',
+    width: 64,
+  },
+  moveButtonText: {
+    color: colors.white,
+    fontSize: 26,
+    fontWeight: '800',
+    lineHeight: 30,
+  },
   gameOverPanel: {
     alignItems: 'center',
     backgroundColor: colors.panel,
