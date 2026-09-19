@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   PanResponder,
   Pressable,
   ScrollView,
@@ -18,6 +19,12 @@ import {
   type GameState,
 } from '../engine';
 import { colors, spacing } from '../theme';
+import { gameStore } from '../storage/asyncStorageAdapter';
+import {
+  clearGame,
+  loadGame,
+  SerializedGameWriter,
+} from '../storage/gameStorage';
 
 const MIN_SWIPE_DISTANCE = 32;
 const CARDINAL_DOMINANCE = 1.5;
@@ -42,7 +49,127 @@ function swipeDirection(dx: number, dy: number): Direction | null {
 
 export function GameScreen() {
   const [pendingK, setPendingK] = useState(1);
-  const [game, setGame] = useState<GameState>(() => createGame(1, Math.random));
+  const [game, setGame] = useState<GameState | null>(null);
+  const [hydration, setHydration] = useState<
+    'loading' | 'ready' | 'invalid' | 'newer-version' | 'read-error'
+  >('loading');
+  const [saveFailed, setSaveFailed] = useState(false);
+  const writer = useMemo(() => new SerializedGameWriter(gameStore), []);
+  const gameRef = useRef<GameState | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    void loadGame(gameStore).then((result) => {
+      if (!mounted) return;
+      if (result.kind === 'loaded') {
+        gameRef.current = result.game;
+        setGame(result.game);
+        setPendingK(result.game.activeK);
+        setHydration('ready');
+      } else if (result.kind === 'empty') {
+        const initial = createGame(1, Math.random);
+        gameRef.current = initial;
+        setGame(initial);
+        setHydration('ready');
+      } else {
+        setHydration(result.reason);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    gameRef.current = game;
+    if (hydration !== 'ready' || game === null) return;
+    void writer.save(game).then((result) => setSaveFailed(!result.ok));
+  }, [game, hydration, writer]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active' && gameRef.current !== null) {
+        void writer
+          .save(gameRef.current)
+          .then((result) => setSaveFailed(!result.ok));
+      }
+    });
+    return () => subscription.remove();
+  }, [writer]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          swipeDirection(gesture.dx, gesture.dy) !== null,
+        onPanResponderRelease: (_, gesture) => {
+          const direction = swipeDirection(gesture.dx, gesture.dy);
+          if (direction === null) return;
+          setGame((current) => {
+            if (current === null || current.status === 'game-over')
+              return current;
+            return move(current, direction, Math.random).state;
+          });
+        },
+      }),
+    [],
+  );
+
+  const discardSavedGame = async () => {
+    const result = await clearGame(gameStore);
+    if (!result.ok) {
+      setSaveFailed(true);
+      return;
+    }
+    const initial = createGame(1, Math.random);
+    gameRef.current = initial;
+    setGame(initial);
+    setPendingK(1);
+    setSaveFailed(false);
+    setHydration('ready');
+  };
+
+  if (hydration === 'loading') {
+    return <CenteredMessage title="Loading saved game…" />;
+  }
+
+  if (hydration !== 'ready' || game === null) {
+    const newer = hydration === 'newer-version';
+    return (
+      <View style={styles.recoveryScreen}>
+        <View style={styles.recoveryPanel}>
+          <Text accessibilityRole="header" style={styles.recoveryTitle}>
+            Saved game needs attention
+          </Text>
+          <Text style={styles.recoveryText}>
+            {newer
+              ? 'This save was created by a newer app version and cannot be opened here.'
+              : hydration === 'read-error'
+                ? 'The saved game could not be read. It has not been changed.'
+                : 'The saved game is invalid and cannot be restored. It has not been changed.'}
+          </Text>
+          {saveFailed ? (
+            <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+              Could not discard the saved game. Please try again.
+            </Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void discardSavedGame()}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.primaryButtonText}>
+              Discard save and start new game
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   const growth = deriveGrowth(game.highestCreatedExponent, game.activeK);
 
   const beginNewGame = () => setGame(createGame(pendingK, Math.random));
@@ -60,23 +187,6 @@ export function GameScreen() {
       ],
     );
   };
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          swipeDirection(gesture.dx, gesture.dy) !== null,
-        onPanResponderRelease: (_, gesture) => {
-          const direction = swipeDirection(gesture.dx, gesture.dy);
-          if (direction === null) return;
-          setGame((current) => {
-            if (current.status === 'game-over') return current;
-            return move(current, direction, Math.random).state;
-          });
-        },
-      }),
-    [],
-  );
 
   return (
     <ScrollView
@@ -119,6 +229,12 @@ export function GameScreen() {
             {growth.sideLength + 1}×{growth.sideLength + 1}
           </Text>
         </View>
+
+        {saveFailed ? (
+          <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+            Save failed. You can keep playing; a later save will retry.
+          </Text>
+        ) : null}
 
         <View
           {...panResponder.panHandlers}
@@ -192,6 +308,16 @@ export function GameScreen() {
   );
 }
 
+function CenteredMessage({ title }: { title: string }) {
+  return (
+    <View style={styles.recoveryScreen}>
+      <Text accessibilityRole="header" style={styles.recoveryTitle}>
+        {title}
+      </Text>
+    </View>
+  );
+}
+
 interface SettingButtonProps {
   disabled: boolean;
   label: string;
@@ -226,6 +352,24 @@ function SettingButton({
 }
 
 const styles = StyleSheet.create({
+  recoveryScreen: {
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.medium,
+  },
+  recoveryPanel: {
+    backgroundColor: colors.panel,
+    borderRadius: 14,
+    gap: spacing.medium,
+    maxWidth: 440,
+    padding: spacing.medium,
+    width: '100%',
+  },
+  recoveryTitle: { color: colors.ink, fontSize: 24, fontWeight: '900' },
+  recoveryText: { color: colors.mutedInk, fontSize: 16, lineHeight: 23 },
+  errorText: { color: colors.ink, fontSize: 15, fontWeight: '700' },
   screen: {
     alignItems: 'center',
     backgroundColor: colors.background,
