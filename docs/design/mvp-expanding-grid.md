@@ -188,6 +188,23 @@ must not truncate engine state or create an undocumented maximum board size. If
 real device limits ultimately require a cap, that is a future gameplay-rule
 decision requiring specification and player-facing communication.
 
+For the MVP interaction implementation, the **provisional** minimum tile target
+is 44 logical points. A board that fits at or above that size remains fully
+fitted; a larger board is clipped inside a square two-dimensional viewport with
+tiles held at least at that target. One-finger cardinal swipes always play a
+move, while two-finger pan and pinch gestures navigate and zoom the viewport.
+Viewport offsets are clamped to the board, visible text identifies the board
+edges currently in view, and labeled zoom-in, zoom-out, and fit/reset controls
+provide non-gesture operation.
+
+Accessible direction buttons invoke the same move path as swipes. A separate
+row/column inspector reports an exact coordinate and its textual value or
+“empty,” independently of visual clipping and zoom. Live announcements are
+limited to score-changing merges, board growth, and game over, with game over
+taking priority when events coincide. These provisional threshold and gesture
+decisions must be validated later on the target iPhone 13 Pro before they are
+considered final; that device validation is outside this implementation step.
+
 ## Architecture and data
 
 ### Pure engine boundary
