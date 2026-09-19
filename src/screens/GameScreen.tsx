@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
   AppState,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { GameBoard } from '../components/GameBoard';
+import { selectAnnouncement } from '../components/boardInteraction';
 import {
   createGame,
   deriveGrowth,
@@ -22,27 +23,6 @@ import {
 import { colors, spacing } from '../theme';
 import { gameStorage } from '../storage/asyncStorageAdapter';
 import type { RecoveryReason } from '../storage/gameStorage';
-
-const MIN_SWIPE_DISTANCE = 32;
-const CARDINAL_DOMINANCE = 1.5;
-
-function swipeDirection(dx: number, dy: number): Direction | null {
-  const horizontal = Math.abs(dx);
-  const vertical = Math.abs(dy);
-  if (
-    horizontal >= MIN_SWIPE_DISTANCE &&
-    horizontal >= vertical * CARDINAL_DOMINANCE
-  ) {
-    return dx > 0 ? 'right' : 'left';
-  }
-  if (
-    vertical >= MIN_SWIPE_DISTANCE &&
-    vertical >= horizontal * CARDINAL_DOMINANCE
-  ) {
-    return dy > 0 ? 'down' : 'up';
-  }
-  return null;
-}
 
 export function GameScreen() {
   const [pendingK, setPendingK] = useState(1);
@@ -99,26 +79,23 @@ export function GameScreen() {
     return () => subscription.remove();
   }, [persist]);
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          swipeDirection(gesture.dx, gesture.dy) !== null,
-        onPanResponderRelease: (_, gesture) => {
-          const direction = swipeDirection(gesture.dx, gesture.dy);
-          if (direction === null) return;
-          setGame((current) => {
-            if (current === null || current.status === 'game-over')
-              return current;
-            const next = move(current, direction, Math.random).state;
-            if (next !== current) {
-              gameRef.current = next;
-              persist(next);
-            }
-            return next;
-          });
-        },
-      }),
+  const performMove = useCallback(
+    (direction: Direction) => {
+      setGame((current) => {
+        if (current === null || current.status === 'game-over') return current;
+        const result = move(current, direction, Math.random);
+        if (!result.moved) return current;
+        gameRef.current = result.state;
+        persist(result.state);
+        const announcement = selectAnnouncement(
+          result.events,
+          result.state.score,
+        );
+        if (announcement !== null)
+          AccessibilityInfo.announceForAccessibility(announcement);
+        return result.state;
+      });
+    },
     [persist],
   );
 
@@ -249,12 +226,7 @@ export function GameScreen() {
           </Text>
         )}
 
-        <View
-          {...panResponder.panHandlers}
-          accessibilityLabel="Swipe game board"
-        >
-          <GameBoard game={game} />
-        </View>
+        <GameBoard game={game} onMove={performMove} />
 
         {game.status === 'game-over' ? (
           <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
