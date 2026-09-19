@@ -191,6 +191,18 @@ test('classifies malformed, unsupported, and newer saves without changing them',
   }
 });
 
+test('classifies an overflowing schema version as invalid without changing it', async () => {
+  const value = saved().replace('"schemaVersion":1', '"schemaVersion":1e400');
+  const store = new MemoryStore();
+  store.values.set(GAME_STORAGE_KEY, value);
+
+  assert.deepEqual(await new GameStorage(store).load(), {
+    type: 'recovery',
+    reason: 'invalid',
+  });
+  assert.equal(store.values.get(GAME_STORAGE_KEY), value);
+});
+
 test('rejects status mismatches during load without changing the save', async () => {
   const cases = [
     saved({ status: 'game-over' }),
