@@ -114,19 +114,19 @@ export function move(
   const grown = growBoard(output, targetSize);
   const exponent = randomSample(random) < 0.9 ? 1 : 2;
   const spawned = spawn(grown, exponent, random);
-  const scoreIncrease = mergedExponents.reduce(
-    (total, value) => total + tileValue(value),
+  const mergeEvents = mergedExponents.map(
+    (mergedExponent): Extract<EngineEvent, { type: 'merge' }> => ({
+      type: 'merge',
+      exponent: mergedExponent,
+      value: tileValue(mergedExponent),
+    }),
+  );
+  const scoreIncrease = mergeEvents.reduce(
+    (total, event) => total + event.value,
     0n,
   );
   const status: GameStatus = isGameOver(spawned.board) ? 'game-over' : 'active';
-  const events: EngineEvent[] = [
-    { type: 'move', direction },
-    ...mergedExponents.map((value): EngineEvent => ({
-      type: 'merge',
-      exponent: value,
-      value: tileValue(value),
-    })),
-  ];
+  const events: EngineEvent[] = [{ type: 'move', direction }, ...mergeEvents];
   if (targetSize > size)
     events.push({ type: 'growth', from: size, to: targetSize });
   events.push({ type: 'spawn', ...spawned.position, exponent });

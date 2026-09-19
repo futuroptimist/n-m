@@ -6,7 +6,7 @@
   "main": "node_modules/expo/AppEntry.js",
   "license": "MIT",
   "engines": {
-    "node": ">=22 <25"
+    "node": "22.x"
   },
   "scripts": {
     "format": "prettier --write .",

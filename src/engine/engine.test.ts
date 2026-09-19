@@ -42,6 +42,14 @@ function state(
   };
 }
 
+function boardWithMergePair(sideLength: number, exponent: number): Board {
+  return Array.from({ length: sideLength }, (_, row) =>
+    Array.from({ length: sideLength }, (_, column) =>
+      row === 0 && column < 2 ? exponent : null,
+    ),
+  );
+}
+
 test('new games validate k and place exactly two exponent-1 tiles', () => {
   for (const k of [1, 10]) {
     const game = createGame(k, sequence(0, 0.999));
@@ -129,68 +137,52 @@ test('multiple merges accumulate exact score and do not chain merge', () => {
   assert.equal(result.state.highestCreatedExponent, 3);
 });
 
-test('k=1 expands at merged 4 and merged 8 milestones', () => {
-  const first = move(
-    state(
-      [
-        [1, 1],
-        [null, null],
-      ],
-      1,
-    ),
-    'left',
-    sequence(0, 0.999),
-  );
-  assert.equal(first.state.sideLength, 3);
-  assert.equal(first.state.highestCreatedExponent, 2);
-
-  const second = move(
-    state(
-      [
-        [2, 2, null],
-        [null, null, null],
-        [null, null, null],
-      ],
-      1,
-      2,
-    ),
-    'left',
-    sequence(0, 0.999),
-  );
-  assert.equal(second.state.sideLength, 4);
-  assert.equal(second.state.highestCreatedExponent, 3);
+test('k=1 expands at the merged 4, 8, and 16 milestones', () => {
+  let sideLength = 2;
+  for (const mergedExponent of [2, 3, 4]) {
+    const result = move(
+      state(
+        boardWithMergePair(sideLength, mergedExponent - 1),
+        1,
+        mergedExponent - 1,
+      ),
+      'left',
+      sequence(0, 0.999),
+    );
+    sideLength += 1;
+    assert.equal(result.state.sideLength, sideLength);
+    assert.equal(result.state.highestCreatedExponent, mergedExponent);
+    assert.deepEqual(
+      result.events.find((event) => event.type === 'growth'),
+      { type: 'growth', from: sideLength - 1, to: sideLength },
+    );
+  }
 });
 
-test('k=2 first expands at 8 and next expands at 32', () => {
-  const atEight = move(
-    state(
-      [
-        [2, 2],
-        [null, null],
-      ],
-      2,
-      2,
-    ),
-    'left',
-    sequence(0, 0.999),
-  );
-  assert.equal(atEight.state.sideLength, 3);
-
-  const atThirtyTwo = move(
-    state(
-      [
-        [4, 4, null],
-        [null, null, null],
-        [null, null, null],
-      ],
-      2,
-      4,
-    ),
-    'left',
-    sequence(0, 0.999),
-  );
-  assert.equal(atThirtyTwo.state.sideLength, 4);
-  assert.equal(atThirtyTwo.state.highestCreatedExponent, 5);
+test('k=2 grows only at the merged 8, 32, and 128 milestones', () => {
+  let sideLength = 2;
+  for (const mergedExponent of [2, 3, 4, 5, 6, 7]) {
+    const previousSideLength = sideLength;
+    const result = move(
+      state(
+        boardWithMergePair(sideLength, mergedExponent - 1),
+        2,
+        mergedExponent - 1,
+      ),
+      'left',
+      sequence(0, 0.999),
+    );
+    const reachesMilestone = mergedExponent % 2 === 1;
+    if (reachesMilestone) sideLength += 1;
+    assert.equal(result.state.sideLength, sideLength);
+    assert.equal(result.state.highestCreatedExponent, mergedExponent);
+    assert.deepEqual(
+      result.events.find((event) => event.type === 'growth'),
+      reachesMilestone
+        ? { type: 'growth', from: previousSideLength, to: sideLength }
+        : undefined,
+    );
+  }
 });
 
 test('growth precedes spawning, including multiple increments and appended space', () => {
