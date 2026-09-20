@@ -41,8 +41,11 @@ test "$(git rev-parse HEAD)" = '<candidate-sha>' || {
 git rev-parse HEAD
 node --version
 npm --version
-npx expo --version
-npm ci
+npm ci || {
+  echo 'STOP: npm ci failed' >&2
+  exit 1
+}
+./node_modules/.bin/expo --version
 npm run check
 npx expo config --type public
 git status --short
@@ -153,12 +156,15 @@ erase, reset, or delete any simulator. Record the simulator model, UDID in the
 private evidence record if appropriate, iOS runtime, Xcode, Expo, and host
 versions.
 
-Leave terminal 1 and Metro running for all launch and relaunch checks. After
-each launch, confirm the actual game UI from this checkout loads (including the
-2×2 board, score, active `k`, and next-growth text); a development-client shell,
-loading screen, or bundle-open event alone is not a pass. Stop before live
-testing if the build, bundle lookup, launch, Metro connection, or game-load
-check fails.
+Leave terminal 1 and Metro running for all launch and relaunch checks. After a
+fresh installation or cleared-data launch, confirm the actual game UI from this
+checkout loads with the expected 2×2 board, two distinct 2s, score 0, active
+`k=1`, and next-growth text. On a persistence relaunch, instead confirm the
+previously recorded board and dimensions, score, active `k`, milestone, and
+status return exactly; an unexpected reset to 2×2 fails the check. A
+development-client shell, loading screen, or bundle-open event alone is not a
+pass. Stop before live testing if the build, bundle lookup, launch, Metro
+connection, or game-load check fails.
 
 ### Simulator checks
 
@@ -326,23 +332,57 @@ offline, or mismatched targets, and use a selected-serial and bounded wait:
 ```sh
 adb devices -l
 export ANDROID_SERIAL='<exact serial from adb devices -l>'
-adb -s "$ANDROID_SERIAL" get-state
-timeout 30s adb -s "$ANDROID_SERIAL" wait-for-device
-boot_ready=false
-for attempt in $(seq 1 120); do
-  if test "$(adb -s "$ANDROID_SERIAL" shell getprop sys.boot_completed | tr -d '\r')" = 1; then
-    boot_ready=true
-    break
-  fi
-  sleep 1
-done
-test "$boot_ready" = true || {
-  echo "STOP: $ANDROID_SERIAL did not become boot-ready within 120 seconds" >&2
-  exit 1
+if ! node <<'NODE'
+const { spawnSync } = require('node:child_process');
+
+const serial = process.env.ANDROID_SERIAL;
+if (!serial) throw new Error('ANDROID_SERIAL is required');
+
+function adb(args, timeout, capture = false) {
+  const result = spawnSync('adb', ['-s', serial, ...args], {
+    encoding: 'utf8',
+    stdio: capture ? ['inherit', 'pipe', 'inherit'] : 'inherit',
+    timeout,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`adb ${args.join(' ')} exited ${result.status}`);
+  }
+  return capture ? result.stdout.trim() : '';
 }
-adb devices -l
-adb -s "$ANDROID_SERIAL" shell getprop ro.product.model
-adb -s "$ANDROID_SERIAL" shell getprop ro.build.version.release
+
+if (adb(['get-state'], 10_000, true) !== 'device') {
+  throw new Error(`${serial} is not an authorized online device`);
+}
+adb(['wait-for-device'], 30_000);
+
+const deadline = Date.now() + 120_000;
+while (true) {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) {
+    throw new Error(`${serial} did not become boot-ready within 120 seconds`);
+  }
+  if (
+    adb(
+      ['shell', 'getprop', 'sys.boot_completed'],
+      Math.min(5_000, remaining),
+      true,
+    ).replace(/\r/g, '') === '1'
+  ) {
+    break;
+  }
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_000);
+}
+
+console.log(`Model: ${adb(['shell', 'getprop', 'ro.product.model'], 5_000, true)}`);
+console.log(
+  `Android: ${adb(['shell', 'getprop', 'ro.build.version.release'], 5_000, true)}`,
+);
+NODE
+then
+  echo "STOP: $ANDROID_SERIAL failed Android readiness verification" >&2
+  exit 1
+fi
 npx expo run:android --device "$ANDROID_SERIAL" --no-bundler
 adb -s "$ANDROID_SERIAL" shell pm path com.futuroptimist.nm
 adb -s "$ANDROID_SERIAL" shell monkey -p com.futuroptimist.nm \
@@ -356,8 +396,11 @@ if needed) throughout relaunch checks. The commands intentionally leave ADB and
 boot errors visible. Stop before building if authorization, bounded readiness,
 model/OS target verification, or serial selection fails. Do not use an unlisted
 serial. Stop if the build, package lookup, activity verification, Metro
-connection, or launch fails. Confirm the 2×2 game UI, score, active `k`, and
-next-growth text from the assessed checkout actually load; merely opening the
+connection, or launch fails. For a fresh installation or cleared-data launch,
+confirm the expected 2×2 board, two distinct 2s, score 0, active `k=1`, and
+next-growth text from the assessed checkout actually load. For a persistence
+relaunch, require the previously recorded board and dimensions, score, active
+`k`, milestone, and status; an unexpected reset fails. Merely opening the
 development-client bundle is not a pass.
 
 Run the shared functional matrix, the natural-play oversized-board gate, and the
