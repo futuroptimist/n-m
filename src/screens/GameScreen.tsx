@@ -49,6 +49,7 @@ function swipeDirection(dx: number, dy: number): Direction | null {
 export function GameScreen() {
   const [pendingK, setPendingK] = useState(1);
   const [game, setGame] = useState<GameState | null>(null);
+  const [boardSession, setBoardSession] = useState(0);
   const [recoveryReason, setRecoveryReason] = useState<RecoveryReason | null>(
     null,
   );
@@ -67,6 +68,7 @@ export function GameScreen() {
     (state: GameState, shouldPersist: boolean) => {
       gameRef.current = state;
       setGame(state);
+      setBoardSession((session) => session + 1);
       if (shouldPersist) persist(state);
     },
     [persist],
@@ -103,24 +105,26 @@ export function GameScreen() {
 
   const performMove = useCallback(
     (direction: Direction) => {
-      setGame((current) => {
-        if (current === null || current.status === 'game-over') return current;
-        const result = move(current, direction, Math.random);
-        if (!result.moved) return current;
-        gameRef.current = result.state;
-        persist(result.state);
-        const announcement = selectMoveAnnouncement(result.events);
-        if (announcement !== null) {
-          AccessibilityInfo.announceForAccessibility(announcement);
-        }
-        return result.state;
-      });
+      const current = gameRef.current;
+      if (current === null || current.status === 'game-over') return;
+      const result = move(current, direction, Math.random);
+      if (!result.moved) return;
+      gameRef.current = result.state;
+      setGame(result.state);
+      persist(result.state);
+      const announcement = selectMoveAnnouncement(result.events);
+      if (announcement !== null) {
+        AccessibilityInfo.announceForAccessibility(announcement);
+      }
     },
     [persist],
   );
 
+  // PanResponder invokes these callbacks after render; it does not inspect the
+  // game ref captured by performMove while the responder is being created.
   const panResponder = useMemo(
     () =>
+      // eslint-disable-next-line react-hooks/refs
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gesture) =>
           gesture.numberActiveTouches === 1 &&
@@ -265,7 +269,7 @@ export function GameScreen() {
           {...panResponder.panHandlers}
           accessibilityLabel="Swipe game board"
         >
-          <GameBoard game={game} />
+          <GameBoard game={game} key={boardSession} />
         </View>
 
         <View style={styles.movePanel}>
@@ -283,7 +287,7 @@ export function GameScreen() {
         </View>
 
         {game.status === 'game-over' ? (
-          <View style={styles.gameOverPanel}>
+          <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
             <Text accessibilityRole="header" style={styles.gameOverTitle}>
               Game over
             </Text>

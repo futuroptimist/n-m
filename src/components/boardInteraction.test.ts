@@ -31,6 +31,10 @@ test('clamps viewport positions without exposing blank space', () => {
 
 test('describes visible edges without relying on color', () => {
   assert.equal(
+    edgeDescription({ top: true, right: true, bottom: true, left: true }),
+    'Visible board edges: top, right, bottom, left',
+  );
+  assert.equal(
     edgeDescription(visibleEdges({ x: 0, y: 0 }, 600, 300)),
     'Visible board edges: top, left',
   );

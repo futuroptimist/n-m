@@ -50,9 +50,13 @@ export function visibleEdges(
 }
 
 export function edgeDescription(edges: VisibleEdges): string {
-  const visible = (Object.keys(edges) as (keyof VisibleEdges)[]).filter(
-    (edge) => edges[edge],
-  );
+  const edgeOrder: readonly (keyof VisibleEdges)[] = [
+    'top',
+    'right',
+    'bottom',
+    'left',
+  ];
+  const visible = edgeOrder.filter((edge) => edges[edge]);
   return visible.length === 0
     ? 'Board interior visible; no board edges visible'
     : `Visible board edges: ${visible.join(', ')}`;

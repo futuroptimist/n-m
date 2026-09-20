@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -45,17 +46,22 @@ export function GameBoard({ game }: GameBoardProps) {
   const [position, setPosition] = useState<ViewportPosition>({ x: 0, y: 0 });
   const [inspectorRow, setInspectorRow] = useState(0);
   const [inspectorColumn, setInspectorColumn] = useState(0);
-  const [gestureStart, setGestureStart] = useState({
+  const gestureStart = useRef({
     distance: null as number | null,
     position: { x: 0, y: 0 },
     zoom: MIN_ZOOM,
   });
   const oversized = needsViewport(game.sideLength, viewportSize);
+  const displayZoom = oversized ? zoom : MIN_ZOOM;
   const baseBoardSize = oversized
     ? game.sideLength * MIN_TILE_SIZE
     : viewportSize;
-  const contentSize = baseBoardSize * zoom;
-  const clampedPosition = clampViewport(position, contentSize, viewportSize);
+  const contentSize = baseBoardSize * displayZoom;
+  const clampedPosition = clampViewport(
+    oversized ? position : { x: 0, y: 0 },
+    contentSize,
+    viewportSize,
+  );
   const edges = visibleEdges(clampedPosition, contentSize, viewportSize);
 
   const updateViewport = (nextZoom: number, nextPosition = position) => {
@@ -66,22 +72,25 @@ export function GameBoard({ game }: GameBoardProps) {
     );
   };
 
+  // Gesture callbacks need the latest mutable grant snapshot before React can
+  // commit another render; this ref is intentionally read only by callbacks.
+  // eslint-disable-next-line react-hooks/refs
   const viewportResponder = PanResponder.create({
     onStartShouldSetPanResponder: (event) =>
       oversized && event.nativeEvent.touches.length >= 2,
     onMoveShouldSetPanResponder: (event) =>
       oversized && event.nativeEvent.touches.length >= 2,
     onPanResponderGrant: (event) => {
-      setGestureStart({
+      gestureStart.current = {
         distance: touchDistance(event),
         position: clampedPosition,
         zoom,
-      });
+      };
     },
     onPanResponderMove: (event, gesture) => {
       if (event.nativeEvent.touches.length < 2) return;
       const distance = touchDistance(event);
-      const start = gestureStart;
+      const start = gestureStart.current;
       const scale =
         distance !== null && start.distance !== null && start.distance > 0
           ? distance / start.distance
@@ -107,6 +116,11 @@ export function GameBoard({ game }: GameBoardProps) {
   const onLayout = (event: LayoutChangeEvent) => {
     const size = event.nativeEvent.layout.width;
     setViewportSize(size);
+    if (!needsViewport(game.sideLength, size)) {
+      setZoom(MIN_ZOOM);
+      setPosition({ x: 0, y: 0 });
+      return;
+    }
     setPosition((current) =>
       clampViewport(current, game.sideLength * MIN_TILE_SIZE * zoom, size),
     );
@@ -120,7 +134,7 @@ export function GameBoard({ game }: GameBoardProps) {
     column,
   );
   const tileSize = oversized
-    ? MIN_TILE_SIZE * zoom
+    ? MIN_TILE_SIZE * displayZoom
     : viewportSize / game.sideLength;
 
   return (
@@ -233,32 +247,54 @@ export function GameBoard({ game }: GameBoardProps) {
         <Text accessibilityRole="header" style={styles.inspectorTitle}>
           Board inspector
         </Text>
-        <Text accessibilityLiveRegion="polite" style={styles.inspectorValue}>
-          {inspectorDescription}
-        </Text>
+        <Text style={styles.inspectorValue}>{inspectorDescription}</Text>
         <View style={styles.controlRow}>
           <BoardButton
             disabled={row === 0}
             label="Previous board row"
-            onPress={() => setInspectorRow(row - 1)}
+            onPress={() => {
+              const nextRow = row - 1;
+              setInspectorRow(nextRow);
+              AccessibilityInfo.announceForAccessibility(
+                cellDescription(game.board[nextRow][column], nextRow, column),
+              );
+            }}
             text="Row −"
           />
           <BoardButton
             disabled={row === game.sideLength - 1}
             label="Next board row"
-            onPress={() => setInspectorRow(row + 1)}
+            onPress={() => {
+              const nextRow = row + 1;
+              setInspectorRow(nextRow);
+              AccessibilityInfo.announceForAccessibility(
+                cellDescription(game.board[nextRow][column], nextRow, column),
+              );
+            }}
             text="Row +"
           />
           <BoardButton
             disabled={column === 0}
             label="Previous board column"
-            onPress={() => setInspectorColumn(column - 1)}
+            onPress={() => {
+              const nextColumn = column - 1;
+              setInspectorColumn(nextColumn);
+              AccessibilityInfo.announceForAccessibility(
+                cellDescription(game.board[row][nextColumn], row, nextColumn),
+              );
+            }}
             text="Column −"
           />
           <BoardButton
             disabled={column === game.sideLength - 1}
             label="Next board column"
-            onPress={() => setInspectorColumn(column + 1)}
+            onPress={() => {
+              const nextColumn = column + 1;
+              setInspectorColumn(nextColumn);
+              AccessibilityInfo.announceForAccessibility(
+                cellDescription(game.board[row][nextColumn], row, nextColumn),
+              );
+            }}
             text="Column +"
           />
         </View>
