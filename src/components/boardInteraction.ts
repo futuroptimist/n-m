@@ -1,10 +1,18 @@
-import { tileValue, type Cell, type EngineEvent } from '../engine';
+import {
+  tileValue,
+  type Cell,
+  type Direction,
+  type EngineEvent,
+} from '../engine';
 
 export const MIN_TILE_SIZE = 44;
 export const TILE_GUTTER = 6;
 export const BOARD_PADDING = 3;
 export const MIN_ZOOM = 1;
 export const MAX_ZOOM = 2.5;
+
+const MIN_SWIPE_DISTANCE = 32;
+const CARDINAL_DOMINANCE = 1.5;
 
 export interface ViewportPosition {
   readonly x: number;
@@ -16,6 +24,36 @@ export interface VisibleEdges {
   readonly right: boolean;
   readonly bottom: boolean;
   readonly left: boolean;
+}
+
+export function swipeDirection(dx: number, dy: number): Direction | null {
+  const horizontal = Math.abs(dx);
+  const vertical = Math.abs(dy);
+  if (
+    horizontal >= MIN_SWIPE_DISTANCE &&
+    horizontal >= vertical * CARDINAL_DOMINANCE
+  ) {
+    return dx > 0 ? 'right' : 'left';
+  }
+  if (
+    vertical >= MIN_SWIPE_DISTANCE &&
+    vertical >= horizontal * CARDINAL_DOMINANCE
+  ) {
+    return dy > 0 ? 'down' : 'up';
+  }
+  return null;
+}
+
+export function shouldCaptureBoardGesture(
+  oversized: boolean,
+  activeTouches: number,
+  dx: number,
+  dy: number,
+): boolean {
+  return (
+    (oversized && activeTouches >= 2) ||
+    (activeTouches === 1 && swipeDirection(dx, dy) !== null)
+  );
 }
 
 export function needsViewport(

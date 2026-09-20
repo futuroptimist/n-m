@@ -14,8 +14,16 @@ import {
   needsViewport,
   normalizeViewport,
   selectMoveAnnouncement,
+  shouldCaptureBoardGesture,
   visibleEdges,
 } from './boardInteraction';
+
+test('captures gameplay swipes on every board and viewport gestures only when oversized', () => {
+  assert.equal(shouldCaptureBoardGesture(false, 1, 40, 0), true);
+  assert.equal(shouldCaptureBoardGesture(true, 1, 40, 0), true);
+  assert.equal(shouldCaptureBoardGesture(false, 2, 0, 0), false);
+  assert.equal(shouldCaptureBoardGesture(true, 2, 0, 0), true);
+});
 
 test('switches below the 44-point rendered-tile threshold including gutters', () => {
   assert.equal(MIN_TILE_SIZE, 44);

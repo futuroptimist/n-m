@@ -24,6 +24,8 @@ import {
   minimumBoardSize,
   needsViewport,
   normalizeViewport,
+  shouldCaptureBoardGesture,
+  swipeDirection,
   visibleEdges,
   type ViewportPosition,
 } from './boardInteraction';
@@ -31,27 +33,6 @@ import {
 interface GameBoardProps {
   game: GameState;
   onMove: (direction: Direction) => void;
-}
-
-const MIN_SWIPE_DISTANCE = 32;
-const CARDINAL_DOMINANCE = 1.5;
-
-function swipeDirection(dx: number, dy: number): Direction | null {
-  const horizontal = Math.abs(dx);
-  const vertical = Math.abs(dy);
-  if (
-    horizontal >= MIN_SWIPE_DISTANCE &&
-    horizontal >= vertical * CARDINAL_DOMINANCE
-  ) {
-    return dx > 0 ? 'right' : 'left';
-  }
-  if (
-    vertical >= MIN_SWIPE_DISTANCE &&
-    vertical >= horizontal * CARDINAL_DOMINANCE
-  ) {
-    return dy > 0 ? 'down' : 'up';
-  }
-  return null;
 }
 
 function tileBackground(exponent: number): string {
@@ -141,9 +122,12 @@ export function GameBoard({ game, onMove }: GameBoardProps) {
       onStartShouldSetPanResponder: (event) =>
         geometry.current.oversized && event.nativeEvent.touches.length >= 2,
       onMoveShouldSetPanResponder: (event, gesture) =>
-        (geometry.current.oversized && event.nativeEvent.touches.length >= 2) ||
-        (gesture.numberActiveTouches === 1 &&
-          swipeDirection(gesture.dx, gesture.dy) !== null),
+        shouldCaptureBoardGesture(
+          geometry.current.oversized,
+          event.nativeEvent.touches.length,
+          gesture.dx,
+          gesture.dy,
+        ),
       onPanResponderGrant: (event) => {
         viewportGesture.current =
           geometry.current.oversized && event.nativeEvent.touches.length >= 2;
@@ -212,7 +196,7 @@ export function GameBoard({ game, onMove }: GameBoardProps) {
         accessibilityLabel={`${game.sideLength} by ${game.sideLength} game board`}
         onLayout={onLayout}
         style={[styles.viewport, oversized && styles.clippedViewport]}
-        {...(oversized ? viewportResponder.panHandlers : {})}
+        {...viewportResponder.panHandlers}
       >
         {viewportSize > 0 ? (
           <View
