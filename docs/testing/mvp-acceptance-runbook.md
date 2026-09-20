@@ -30,10 +30,18 @@ git clone https://github.com/futuroptimist/n-m.git n-m-acceptance
 cd n-m-acceptance
 git fetch origin main
 git checkout --detach <candidate-sha>
-test -z "$(git status --short)"
+test -z "$(git status --short)" || {
+  echo 'STOP: candidate checkout is not clean' >&2
+  exit 1
+}
+test "$(git rev-parse HEAD)" = '<candidate-sha>' || {
+  echo 'STOP: HEAD is not the requested candidate SHA' >&2
+  exit 1
+}
 git rev-parse HEAD
 node --version
 npm --version
+npx expo --version
 npm ci
 npm run check
 npx expo config --type public
@@ -54,6 +62,13 @@ Expected results:
 - Expo public config exits zero and reports app slug `n-m`, iOS bundle ID
   `com.futuroptimist.nm`, and Android package `com.futuroptimist.nm`.
 - `git diff --check` exits zero with no output.
+
+Stop the assessment immediately if the clean-tree or exact-SHA guard fails, if
+the Node/npm/Expo or native toolchain versions do not meet the recorded runtime
+requirements, or if any install, check, build, bundle lookup, package lookup, or
+launch verification fails. Correct the environment or create a new evidence
+record; do not continue and reinterpret later results as evidence for the failed
+candidate.
 
 `npx expo run:ios` and `npx expo run:android` generate native projects through
 Expo CNG. Run native generation and builds only in this disposable clone or a
@@ -103,8 +118,17 @@ containers ad hoc or destroy evidence.
 
 ### Discover, boot, build, and launch
 
-Run on macOS with Xcode selected. Keep identifiers in shell variables so no
-personal simulator identifier enters the repository:
+Run on macOS with Xcode selected. Use two terminals in the same disposable
+candidate checkout. In terminal 1, verify the SHA again and keep Metro running:
+
+```sh
+cd n-m-acceptance
+test "$(git rev-parse HEAD)" = '<candidate-sha>' || exit 1
+npm start
+```
+
+In terminal 2, keep identifiers in shell variables so no personal simulator
+identifier enters the repository, then build without starting a second bundler:
 
 ```sh
 xcodebuild -version
@@ -116,7 +140,7 @@ xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b || {
   xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 }
 open -a Simulator
-npx expo run:ios --device "$IOS_SIMULATOR_UDID"
+npx expo run:ios --device "$IOS_SIMULATOR_UDID" --no-bundler
 xcrun simctl get_app_container "$IOS_SIMULATOR_UDID" com.futuroptimist.nm app
 xcrun simctl launch --terminate-running-process \
   "$IOS_SIMULATOR_UDID" com.futuroptimist.nm
@@ -129,15 +153,31 @@ erase, reset, or delete any simulator. Record the simulator model, UDID in the
 private evidence record if appropriate, iOS runtime, Xcode, Expo, and host
 versions.
 
+Leave terminal 1 and Metro running for all launch and relaunch checks. After
+each launch, confirm the actual game UI from this checkout loads (including the
+2×2 board, score, active `k`, and next-growth text); a development-client shell,
+loading screen, or bundle-open event alone is not a pass. Stop before live
+testing if the build, bundle lookup, launch, Metro connection, or game-load
+check fails.
+
 ### Simulator checks
 
 Perform the shared live functional matrix, then:
 
-- Enable VoiceOver using macOS Accessibility Inspector or the Simulator's
-  supported accessibility controls. Traverse in logical order. Confirm the score
-  and board dimensions are spoken; New game, the four moves, `k`
-  decrement/increment, inspector, and viewport controls have descriptive roles,
-  labels, bounds, and disabled states. Confirm focus is not trapped or lost.
+- Record Xcode and iOS runtime versions first. Where that runtime supports
+  native simulated VoiceOver, activate it in the simulated **Settings app →
+  Accessibility → VoiceOver** (and record the exact route used). Traverse in
+  logical order. Confirm the score and board dimensions are spoken; New game,
+  the four moves, `k` decrement/increment, inspector, and viewport controls have
+  descriptive roles, labels, bounds, and disabled states. Confirm focus is not
+  trapped or lost.
+- Use Xcode Accessibility Inspector separately to inspect element metadata,
+  names, roles, values, states, bounds, and focus order. Inspector metadata is
+  not evidence that VoiceOver focused or spoke an element and cannot substitute
+  for speech, focus, or announcement evidence. If the recorded Xcode/runtime
+  cannot run native simulated VoiceOver, record VoiceOver cases **Not run** with
+  that limitation; do not waive any required gate. Physical iPhone VoiceOver
+  verification remains mandatory.
 - With the board inspector, step to first/last rows and columns and confirm
   one-based row/column plus exact tile value or “empty” is visible and announced
   only after explicit row/column actions. Confirm tile meaning, edge state, and
@@ -153,6 +193,11 @@ Perform the shared live functional matrix, then:
   each resulting board state remains understandable and movement, merge, and
   growth transitions update immediately or use restrained fades. Restore the
   original setting after recording the result.
+
+Perform ordinary one-finger swipe, two-finger pan, and pinch gesture tests with
+VoiceOver off. Then turn VoiceOver on for accessible-control and inspector
+focus/speech/announcement tests; do not treat screen-reader gestures as ordinary
+gameplay gesture evidence. Record the screen-reader state for each result.
 
 ### Oversized-board gate
 
@@ -186,7 +231,10 @@ when that iOS version requires it, and ensure Xcode has an available Apple
 development team. Never record credentials, provisioning profiles, signing
 identities, or secrets in the repository.
 
-Discover the device rather than hard-coding an identifier:
+Discover the device rather than hard-coding an identifier. As with the
+simulator, keep `npm start` running in terminal 1 from the exact disposable
+candidate checkout. In terminal 2 in that same checkout, define and use the
+device variable:
 
 ```sh
 xcodebuild -version
@@ -194,7 +242,7 @@ xcrun devicectl list devices
 # On Xcode versions that provide it, this is an additional discovery view:
 xcrun xctrace list devices
 export IOS_DEVICE='<exact discovered iPhone 13 Pro name or identifier>'
-npx expo run:ios --device "$IOS_DEVICE"
+npx expo run:ios --device "$IOS_DEVICE" --no-bundler
 xcrun devicectl device info apps --device "$IOS_DEVICE" \
   --bundle-id com.futuroptimist.nm
 xcrun devicectl device process launch --device "$IOS_DEVICE" \
@@ -205,7 +253,10 @@ If automatic signing cannot select a team, open the generated Xcode workspace
 inside the disposable checkout, select the discovered device and an authorized
 development team, then build/run. Record that manual step without recording
 private signing data. Confirm the installed and launched bundle is
-`com.futuroptimist.nm` before testing.
+`com.futuroptimist.nm` before testing. Keep Metro available through OS-icon and
+force-quit relaunches, and confirm the game UI from the assessed checkout loads;
+the development-client bundle opening is insufficient. Stop on any build,
+bundle, launch, Metro, or game-load failure.
 
 Run the complete shared, simulator accessibility, and oversized-board matrices
 again on the phone; simulator evidence cannot be reused. Additionally verify:
@@ -221,6 +272,10 @@ again on the phone; simulator evidence cannot be reused. Additionally verify:
   understandable; and
 - state persists after backgrounding, force-quitting from the app switcher, and
   launching the installed icon again (not from Metro/Xcode alone).
+
+Physical iPhone VoiceOver verification is mandatory. Test ordinary swipe,
+two-finger pan, and pinch behavior with VoiceOver off; test accessible controls,
+inspector focus/speech, and announcements with VoiceOver on.
 
 After evidence capture, cleanup is optional and recoverable by rebuilding. First
 use the app-info command above to verify the bundle identifier, then—only if the
@@ -251,19 +306,44 @@ emulator -list-avds
 adb devices -l
 ```
 
-For an emulator, start one actually returned by `emulator -list-avds`, wait for
-Android to finish booting, and then select the serial actually returned by ADB.
-For a physical device, enable developer options/USB debugging and approve that
-host's debugging prompt.
+Use two terminals in the same disposable candidate checkout. In terminal 1,
+verify the candidate SHA and keep `npm start` running. In terminal 2, first run
+`adb devices -l`, choose exactly one listed target, and set `ANDROID_SERIAL`
+before any wait. For a physical device, enable developer options/USB debugging,
+approve that host's prompt, and skip all AVD/emulator-start commands.
+
+For the emulator path only, start an AVD actually returned by
+`emulator -list-avds`:
 
 ```sh
 export ANDROID_AVD='<discovered AVD name>'
 emulator -avd "$ANDROID_AVD" &
-adb wait-for-device
+```
+
+For either path, select the target from fresh output, reject unauthorized,
+offline, or mismatched targets, and use a selected-serial and bounded wait:
+
+```sh
 adb devices -l
-export ANDROID_SERIAL='<discovered emulator or device serial>'
-test "$(adb -s "$ANDROID_SERIAL" shell getprop sys.boot_completed | tr -d '\r')" = 1
-npx expo run:android --device "$ANDROID_SERIAL"
+export ANDROID_SERIAL='<exact serial from adb devices -l>'
+adb -s "$ANDROID_SERIAL" get-state
+timeout 30s adb -s "$ANDROID_SERIAL" wait-for-device
+boot_ready=false
+for attempt in $(seq 1 120); do
+  if test "$(adb -s "$ANDROID_SERIAL" shell getprop sys.boot_completed | tr -d '\r')" = 1; then
+    boot_ready=true
+    break
+  fi
+  sleep 1
+done
+test "$boot_ready" = true || {
+  echo "STOP: $ANDROID_SERIAL did not become boot-ready within 120 seconds" >&2
+  exit 1
+}
+adb devices -l
+adb -s "$ANDROID_SERIAL" shell getprop ro.product.model
+adb -s "$ANDROID_SERIAL" shell getprop ro.build.version.release
+npx expo run:android --device "$ANDROID_SERIAL" --no-bundler
 adb -s "$ANDROID_SERIAL" shell pm path com.futuroptimist.nm
 adb -s "$ANDROID_SERIAL" shell monkey -p com.futuroptimist.nm \
   -c android.intent.category.LAUNCHER 1
@@ -271,9 +351,14 @@ adb -s "$ANDROID_SERIAL" shell dumpsys activity activities | \
   grep -F com.futuroptimist.nm
 ```
 
-Use a separate terminal for a foreground emulator if needed. Do not use an
-unlisted serial, and stop if package lookup or activity verification does not
-identify `com.futuroptimist.nm`.
+Keep Metro running in terminal 1 (and a foreground emulator in another terminal
+if needed) throughout relaunch checks. The commands intentionally leave ADB and
+boot errors visible. Stop before building if authorization, bounded readiness,
+model/OS target verification, or serial selection fails. Do not use an unlisted
+serial. Stop if the build, package lookup, activity verification, Metro
+connection, or launch fails. Confirm the 2×2 game UI, score, active `k`, and
+next-growth text from the assessed checkout actually load; merely opening the
+development-client bundle is not a pass.
 
 Run the shared functional matrix, the natural-play oversized-board gate, and the
 applicable non-color, inspector, announcement, and large-font checks. Enable
@@ -289,6 +374,10 @@ On a physical Android device, additionally check real hand reachability,
 physical gesture separation, system font scaling, and USB or wireless relaunch.
 If only an emulator is used, record every physical-Android-only check as **Not
 run**.
+
+Perform ordinary swipe, pan, and pinch tests with TalkBack off. Turn TalkBack on
+for accessible-control and inspector focus/speech/announcement tests, and record
+its state with each result.
 
 Android acceptance requires only a local development build. It does not require
 release signing, a store upload, ads, analytics, or production distribution.
