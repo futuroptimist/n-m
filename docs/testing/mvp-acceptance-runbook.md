@@ -2,12 +2,12 @@
 
 ## Purpose and evidence rules
 
-Use this runbook to validate one MVP candidate on an iPhone Simulator, an iPhone
-13 Pro, and an Android emulator or device. Static checks and automated tests
+Use this runbook to validate one MVP candidate on an iOS Simulator, an iPhone 13
+Pro, and an Android emulator or device. Static checks and automated tests
 support acceptance, but do not substitute for the live checks below.
 
 Record every check as **Pass**, **Fail**, or **Not run**. Every record must name
-the candidate commit SHA and the tool, device, OS/runtime, and assistive-
+the candidate commit SHA and the tool, device, OS/runtime, and assistive
 technology versions used. For a failure, include exact reproduction steps,
 expected and observed behavior, and links to captured evidence. Never infer a
 device result from CI or claim success for an unperformed check. Completion
@@ -33,6 +33,7 @@ git checkout --detach <candidate-sha>
 test -z "$(git status --short)"
 git rev-parse HEAD
 node --version
+npm --version
 npm ci
 npm run check
 npx expo config --type public
@@ -148,6 +149,10 @@ Perform the shared live functional matrix, then:
   relaunch, and confirm labels remain readable, controls reachable, the screen
   scrolls where necessary, and board values remain identifiable. Restore the
   original setting and record both sizes.
+- Enable Reduce Motion, then perform a slide, merge, and board growth. Confirm
+  each resulting board state remains understandable and movement, merge, and
+  growth transitions update immediately or use restrained fades. Restore the
+  original setting after recording the result.
 
 ### Oversized-board gate
 
@@ -211,6 +216,9 @@ again on the phone; simulator evidence cannot be reused. Additionally verify:
   oversized board, including near screen and viewport edges;
 - at default and a large system font size, text remains readable and controls
   remain reachable; and
+- with Reduce Motion enabled, slide, merge, and growth transitions update
+  immediately or use restrained fades while every resulting state remains
+  understandable; and
 - state persists after backgrounding, force-quitting from the app switcher, and
   launching the installed icon again (not from Metro/Xcode alone).
 
@@ -272,6 +280,11 @@ applicable non-color, inspector, announcement, and large-font checks. Enable
 TalkBack and use swipe/focus navigation to verify logical focus, descriptive
 control labels/roles/states, inspector access, and bounded announcements. Verify
 persistence across backgrounding, removal from Recents, and a launcher relaunch.
+Enable the target's reduced-motion or Remove animations preference and confirm
+that slide, merge, and growth transitions update immediately or use restrained
+fades while every resulting board state remains understandable; then restore the
+original setting. Record the exact preference used. If the target provides no
+applicable preference, record the check as **Not run** with the OS and reason.
 On a physical Android device, additionally check real hand reachability,
 physical gesture separation, system font scaling, and USB or wireless relaunch.
 If only an emulator is used, record every physical-Android-only check as **Not
@@ -299,6 +312,7 @@ Use one result per environment where the row applies.
 | Inspector / directional controls | 44-point accessible controls; exact one-based cell text; all rows/columns and moves reachable             | Assistive-tech notes and representative captures                                  |
 | Announcements                    | Only inspector actions, merges, growth, and game over announce; game over has priority                    | VoiceOver/TalkBack recording or transcript                                        |
 | Dynamic Type / font size         | Large text is readable, operable, and scrollable without loss of meaning                                  | Default/large screenshots and configured size                                     |
+| Reduced motion                   | With the platform preference enabled, slide, merge, and growth states remain clear without full motion    | Preference name/value and video or action/result notes                            |
 | VoiceOver / TalkBack             | Logical focus; names, roles, states, bounds; no focus trap; non-color meaning                             | Version/settings and narrated transcript/video                                    |
 | iOS Simulator                    | All applicable simulator cases run on the recorded runtime                                                | Device/runtime/Xcode versions and matrix results                                  |
 | iPhone 13 Pro                    | Full matrix rerun on hardware, including reachability and real relaunch                                   | Model/iOS/app bundle, versions, video/screenshots                                 |
@@ -359,6 +373,7 @@ mark them **Not run**; never prefill a result based on expectation.
 | Inspector / directional controls |             |                       |                               |
 | Announcements                    |             |                       |                               |
 | Dynamic Type / font size         |             |                       |                               |
+| Reduced motion                   |             |                       |                               |
 | VoiceOver / TalkBack             |             |                       |                               |
 | iOS Simulator overall            |             |                       |                               |
 | iPhone 13 Pro overall            |             |                       |                               |
