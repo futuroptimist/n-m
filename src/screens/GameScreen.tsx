@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AccessibilityInfo,
   Alert,
   AppState,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,27 +23,6 @@ import {
 import { colors, spacing } from '../theme';
 import { gameStorage } from '../storage/asyncStorageAdapter';
 import type { RecoveryReason } from '../storage/gameStorage';
-
-const MIN_SWIPE_DISTANCE = 32;
-const CARDINAL_DOMINANCE = 1.5;
-
-function swipeDirection(dx: number, dy: number): Direction | null {
-  const horizontal = Math.abs(dx);
-  const vertical = Math.abs(dy);
-  if (
-    horizontal >= MIN_SWIPE_DISTANCE &&
-    horizontal >= vertical * CARDINAL_DOMINANCE
-  ) {
-    return dx > 0 ? 'right' : 'left';
-  }
-  if (
-    vertical >= MIN_SWIPE_DISTANCE &&
-    vertical >= horizontal * CARDINAL_DOMINANCE
-  ) {
-    return dy > 0 ? 'down' : 'up';
-  }
-  return null;
-}
 
 export function GameScreen() {
   const [pendingK, setPendingK] = useState(1);
@@ -118,24 +96,6 @@ export function GameScreen() {
       }
     },
     [persist],
-  );
-
-  // PanResponder invokes these callbacks after render; it does not inspect the
-  // game ref captured by performMove while the responder is being created.
-  const panResponder = useMemo(
-    () =>
-      // eslint-disable-next-line react-hooks/refs
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          gesture.numberActiveTouches === 1 &&
-          swipeDirection(gesture.dx, gesture.dy) !== null,
-        onPanResponderRelease: (_, gesture) => {
-          const direction = swipeDirection(gesture.dx, gesture.dy);
-          if (direction === null) return;
-          performMove(direction);
-        },
-      }),
-    [performMove],
   );
 
   if (recoveryReason !== null) {
@@ -265,12 +225,7 @@ export function GameScreen() {
           </Text>
         )}
 
-        <View
-          {...panResponder.panHandlers}
-          accessibilityLabel="Swipe game board"
-        >
-          <GameBoard game={game} key={boardSession} />
-        </View>
+        <GameBoard game={game} key={boardSession} onMove={performMove} />
 
         <View style={styles.movePanel}>
           <Text accessibilityRole="header" style={styles.moveTitle}>

@@ -2,19 +2,30 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  BOARD_PADDING,
   MIN_TILE_SIZE,
+  TILE_GUTTER,
+  boardContentSize,
   cellDescription,
   clampViewport,
   edgeDescription,
+  fittedTileSize,
+  minimumBoardSize,
   needsViewport,
+  normalizeViewport,
   selectMoveAnnouncement,
   visibleEdges,
 } from './boardInteraction';
 
-test('switches to a viewport only below the 44-point fitted threshold', () => {
+test('switches below the 44-point rendered-tile threshold including gutters', () => {
   assert.equal(MIN_TILE_SIZE, 44);
-  assert.equal(needsViewport(10, 440), false);
-  assert.equal(needsViewport(11, 440), true);
+  assert.equal(TILE_GUTTER, 6);
+  assert.equal(BOARD_PADDING, 3);
+  assert.equal(minimumBoardSize(10), 506);
+  assert.equal(boardContentSize(10, 88), 946);
+  assert.equal(needsViewport(10, 506), false);
+  assert.equal(needsViewport(10, 505), true);
+  assert.equal(fittedTileSize(10, 506), 44);
   assert.equal(needsViewport(4, 0), false);
 });
 
@@ -26,6 +37,17 @@ test('clamps viewport positions without exposing blank space', () => {
   assert.deepEqual(clampViewport({ x: -20, y: -40 }, 200, 300), {
     x: 0,
     y: 0,
+  });
+});
+
+test('normalizes fitted viewports and clamps oversized viewports', () => {
+  assert.deepEqual(normalizeViewport(false, 2, { x: -40, y: -20 }, 10, 300), {
+    zoom: 1,
+    position: { x: 0, y: 0 },
+  });
+  assert.deepEqual(normalizeViewport(true, 3, { x: -900, y: 10 }, 10, 300), {
+    zoom: 2.5,
+    position: { x: -866, y: 0 },
   });
 });
 

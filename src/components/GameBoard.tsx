@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   PanResponder,
@@ -10,22 +10,48 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 
-import { tileValue, type GameState } from '../engine';
+import { tileValue, type Direction, type GameState } from '../engine';
 import { colors, spacing } from '../theme';
 import {
   MAX_ZOOM,
   MIN_TILE_SIZE,
   MIN_ZOOM,
+  boardContentSize,
   cellDescription,
   clampViewport,
   edgeDescription,
+  fittedTileSize,
+  minimumBoardSize,
   needsViewport,
+  normalizeViewport,
   visibleEdges,
   type ViewportPosition,
 } from './boardInteraction';
 
 interface GameBoardProps {
   game: GameState;
+  onMove: (direction: Direction) => void;
+}
+
+const MIN_SWIPE_DISTANCE = 32;
+const CARDINAL_DOMINANCE = 1.5;
+
+function swipeDirection(dx: number, dy: number): Direction | null {
+  const horizontal = Math.abs(dx);
+  const vertical = Math.abs(dy);
+  if (
+    horizontal >= MIN_SWIPE_DISTANCE &&
+    horizontal >= vertical * CARDINAL_DOMINANCE
+  ) {
+    return dx > 0 ? 'right' : 'left';
+  }
+  if (
+    vertical >= MIN_SWIPE_DISTANCE &&
+    vertical >= horizontal * CARDINAL_DOMINANCE
+  ) {
+    return dy > 0 ? 'down' : 'up';
+  }
+  return null;
 }
 
 function tileBackground(exponent: number): string {
@@ -40,7 +66,7 @@ function touchDistance(event: GestureResponderEvent): number | null {
   return Math.hypot(second.pageX - first.pageX, second.pageY - first.pageY);
 }
 
-export function GameBoard({ game }: GameBoardProps) {
+export function GameBoard({ game, onMove }: GameBoardProps) {
   const [viewportSize, setViewportSize] = useState(0);
   const [zoom, setZoom] = useState(MIN_ZOOM);
   const [position, setPosition] = useState<ViewportPosition>({ x: 0, y: 0 });
@@ -51,12 +77,22 @@ export function GameBoard({ game }: GameBoardProps) {
     position: { x: 0, y: 0 },
     zoom: MIN_ZOOM,
   });
+  const viewportGesture = useRef(false);
+  const viewportState = useRef({ zoom: MIN_ZOOM, position: { x: 0, y: 0 } });
+  const geometry = useRef({
+    oversized: false,
+    sideLength: game.sideLength,
+    viewportSize: 0,
+  });
+  const onMoveRef = useRef(onMove);
   const oversized = needsViewport(game.sideLength, viewportSize);
   const displayZoom = oversized ? zoom : MIN_ZOOM;
   const baseBoardSize = oversized
-    ? game.sideLength * MIN_TILE_SIZE
+    ? minimumBoardSize(game.sideLength)
     : viewportSize;
-  const contentSize = baseBoardSize * displayZoom;
+  const contentSize = oversized
+    ? boardContentSize(game.sideLength, MIN_TILE_SIZE * displayZoom)
+    : viewportSize;
   const clampedPosition = clampViewport(
     oversized ? position : { x: 0, y: 0 },
     contentSize,
@@ -64,66 +100,99 @@ export function GameBoard({ game }: GameBoardProps) {
   );
   const edges = visibleEdges(clampedPosition, contentSize, viewportSize);
 
-  const updateViewport = (nextZoom: number, nextPosition = position) => {
-    const boundedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextZoom));
-    setZoom(boundedZoom);
-    setPosition(
-      clampViewport(nextPosition, baseBoardSize * boundedZoom, viewportSize),
+  useEffect(() => {
+    onMoveRef.current = onMove;
+  }, [onMove]);
+
+  useLayoutEffect(() => {
+    geometry.current = { oversized, sideLength: game.sideLength, viewportSize };
+    const normalized = normalizeViewport(
+      oversized,
+      viewportState.current.zoom,
+      viewportState.current.position,
+      game.sideLength,
+      viewportSize,
     );
+    viewportState.current = normalized;
+    setZoom(normalized.zoom);
+    setPosition(normalized.position);
+  }, [game.sideLength, oversized, viewportSize]);
+
+  const applyViewport = (nextZoom: number, nextPosition: ViewportPosition) => {
+    const currentGeometry = geometry.current;
+    const normalized = normalizeViewport(
+      currentGeometry.oversized,
+      nextZoom,
+      nextPosition,
+      currentGeometry.sideLength,
+      currentGeometry.viewportSize,
+    );
+    viewportState.current = normalized;
+    setZoom(normalized.zoom);
+    setPosition(normalized.position);
   };
 
   // Gesture callbacks need the latest mutable grant snapshot before React can
   // commit another render; this ref is intentionally read only by callbacks.
-  // eslint-disable-next-line react-hooks/refs
-  const viewportResponder = PanResponder.create({
-    onStartShouldSetPanResponder: (event) =>
-      oversized && event.nativeEvent.touches.length >= 2,
-    onMoveShouldSetPanResponder: (event) =>
-      oversized && event.nativeEvent.touches.length >= 2,
-    onPanResponderGrant: (event) => {
-      gestureStart.current = {
-        distance: touchDistance(event),
-        position: clampedPosition,
-        zoom,
-      };
-    },
-    onPanResponderMove: (event, gesture) => {
-      if (event.nativeEvent.touches.length < 2) return;
-      const distance = touchDistance(event);
-      const start = gestureStart.current;
-      const scale =
-        distance !== null && start.distance !== null && start.distance > 0
-          ? distance / start.distance
-          : 1;
-      const nextZoom = Math.max(
-        MIN_ZOOM,
-        Math.min(MAX_ZOOM, start.zoom * scale),
-      );
-      setZoom(nextZoom);
-      setPosition(
-        clampViewport(
-          {
-            x: start.position.x + gesture.dx,
-            y: start.position.y + gesture.dy,
-          },
-          baseBoardSize * nextZoom,
-          viewportSize,
-        ),
-      );
-    },
-  });
+  const viewportResponder = useMemo(() => {
+    // The responder stays stable while its event callbacks read current refs.
+    // eslint-disable-next-line react-hooks/refs
+    return PanResponder.create({
+      onStartShouldSetPanResponder: (event) =>
+        geometry.current.oversized && event.nativeEvent.touches.length >= 2,
+      onMoveShouldSetPanResponder: (event, gesture) =>
+        (geometry.current.oversized && event.nativeEvent.touches.length >= 2) ||
+        (gesture.numberActiveTouches === 1 &&
+          swipeDirection(gesture.dx, gesture.dy) !== null),
+      onPanResponderGrant: (event) => {
+        viewportGesture.current =
+          geometry.current.oversized && event.nativeEvent.touches.length >= 2;
+        if (!viewportGesture.current) return;
+        gestureStart.current = {
+          distance: touchDistance(event),
+          position: viewportState.current.position,
+          zoom: viewportState.current.zoom,
+        };
+      },
+      onPanResponderMove: (event, gesture) => {
+        if (
+          !geometry.current.oversized ||
+          event.nativeEvent.touches.length < 2
+        ) {
+          return;
+        }
+        const distance = touchDistance(event);
+        const start = gestureStart.current;
+        const scale =
+          distance !== null && start.distance !== null && start.distance > 0
+            ? distance / start.distance
+            : 1;
+        applyViewport(start.zoom * scale, {
+          x: start.position.x + gesture.dx,
+          y: start.position.y + gesture.dy,
+        });
+      },
+      onPanResponderRelease: (event, gesture) => {
+        if (viewportGesture.current) {
+          viewportGesture.current = false;
+          return;
+        }
+        const direction = swipeDirection(gesture.dx, gesture.dy);
+        if (direction !== null) onMoveRef.current(direction);
+      },
+    });
+  }, []);
 
   const onLayout = (event: LayoutChangeEvent) => {
     const size = event.nativeEvent.layout.width;
     setViewportSize(size);
-    if (!needsViewport(game.sideLength, size)) {
-      setZoom(MIN_ZOOM);
-      setPosition({ x: 0, y: 0 });
-      return;
-    }
-    setPosition((current) =>
-      clampViewport(current, game.sideLength * MIN_TILE_SIZE * zoom, size),
-    );
+    const nextOversized = needsViewport(game.sideLength, size);
+    geometry.current = {
+      oversized: nextOversized,
+      sideLength: game.sideLength,
+      viewportSize: size,
+    };
+    applyViewport(viewportState.current.zoom, viewportState.current.position);
   };
 
   const row = Math.min(inspectorRow, game.sideLength - 1);
@@ -134,8 +203,8 @@ export function GameBoard({ game }: GameBoardProps) {
     column,
   );
   const tileSize = oversized
-    ? MIN_TILE_SIZE * displayZoom
-    : viewportSize / game.sideLength;
+    ? fittedTileSize(game.sideLength, baseBoardSize) * displayZoom
+    : fittedTileSize(game.sideLength, viewportSize);
 
   return (
     <View style={styles.section}>
@@ -177,8 +246,8 @@ export function GameBoard({ game }: GameBoardProps) {
                             exponent === null
                               ? colors.empty
                               : tileBackground(exponent),
-                          height: tileSize - 6,
-                          width: tileSize - 6,
+                          height: tileSize,
+                          width: tileSize,
                         },
                       ]}
                     >
@@ -212,9 +281,7 @@ export function GameBoard({ game }: GameBoardProps) {
 
       {oversized ? (
         <View style={styles.viewportControls}>
-          <Text accessibilityLiveRegion="polite" style={styles.edgeText}>
-            {edgeDescription(edges)}
-          </Text>
+          <Text style={styles.edgeText}>{edgeDescription(edges)}</Text>
           <Text style={styles.viewportHint}>
             Two fingers pan or pinch. One finger still moves tiles.
           </Text>
@@ -222,20 +289,29 @@ export function GameBoard({ game }: GameBoardProps) {
             <BoardButton
               disabled={zoom <= MIN_ZOOM}
               label="Zoom board out"
-              onPress={() => updateViewport(zoom - 0.25)}
+              onPress={() =>
+                applyViewport(
+                  viewportState.current.zoom - 0.25,
+                  viewportState.current.position,
+                )
+              }
               text="Zoom −"
             />
             <BoardButton
               disabled={zoom >= MAX_ZOOM}
               label="Zoom board in"
-              onPress={() => updateViewport(zoom + 0.25)}
+              onPress={() =>
+                applyViewport(
+                  viewportState.current.zoom + 0.25,
+                  viewportState.current.position,
+                )
+              }
               text="Zoom +"
             />
             <BoardButton
               label="Reset board viewport"
               onPress={() => {
-                setZoom(MIN_ZOOM);
-                setPosition({ x: 0, y: 0 });
+                applyViewport(MIN_ZOOM, { x: 0, y: 0 });
               }}
               text="Fit / reset"
             />

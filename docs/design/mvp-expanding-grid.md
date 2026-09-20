@@ -174,7 +174,8 @@ animation necessary to understand the resulting board.
 
 The rules impose no gameplay size cap, and tiles cannot shrink indefinitely. As
 a **proposed interaction decision**, render the whole board as a fitted square
-while each tile is at least 44 logical points wide and tall. When fitting would
+while each rendered tile itself is at least 44 logical points wide and tall,
+excluding the six-point inter-cell gutter and board padding. When fitting would
 make tiles smaller than that provisional threshold, use a clipped
 two-dimensional viewport whose initial tile target remains 44 points. Clamp
 panning so blank space cannot be exposed. Visible text identifies which top,
@@ -182,14 +183,17 @@ right, bottom, and left board edges are in view, so location never depends on
 color alone. Visible, accessible controls zoom in, zoom out, and fit/reset the
 viewport.
 
-One-finger cardinal swipes remain gameplay moves at every board size. Two-finger
-pan and pinch gestures navigate the oversized-board viewport. Accessible
-44-point directional controls invoke the same gameplay move path, while a board
-inspector steps independently through rows and columns and reports each exact
-value or “empty,” including cells outside the visual viewport. Live
-announcements are limited to score-changing merges, growth, and game over; game
-over takes priority when events coincide. Spawns, no-op gestures, and redraws
-are not announced.
+One-finger cardinal swipes within the square board viewport remain gameplay
+moves at every board size; swipes on the inspector or viewport controls do not
+move tiles. Two-finger pan and pinch gestures navigate the oversized-board
+viewport only while it is needed. Accessible 44-point directional controls
+invoke the same gameplay move path, while a board inspector steps independently
+through rows and columns and reports each exact value or “empty,” including
+cells outside the visual viewport. Live announcements are limited to explicit
+inspector row/column actions and to score-changing merges, growth, and game
+over; game over takes priority when events coincide. Spawns, no-op gestures,
+viewport changes, and redraws are not announced. Edge status remains readable
+text rather than a live region.
 
 These threshold and gesture choices remain provisional until they are validated
 on the iPhone 13 Pro in the later physical-device acceptance step. That check

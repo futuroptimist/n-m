@@ -1,6 +1,8 @@
 import { tileValue, type Cell, type EngineEvent } from '../engine';
 
 export const MIN_TILE_SIZE = 44;
+export const TILE_GUTTER = 6;
+export const BOARD_PADDING = 3;
 export const MIN_ZOOM = 1;
 export const MAX_ZOOM = 2.5;
 
@@ -20,7 +22,25 @@ export function needsViewport(
   sideLength: number,
   availableSize: number,
 ): boolean {
-  return availableSize > 0 && availableSize / sideLength < MIN_TILE_SIZE;
+  return availableSize > 0 && minimumBoardSize(sideLength) > availableSize;
+}
+
+export function minimumBoardSize(sideLength: number): number {
+  return boardContentSize(sideLength, MIN_TILE_SIZE);
+}
+
+export function boardContentSize(
+  sideLength: number,
+  renderedTileSize: number,
+): number {
+  return sideLength * (renderedTileSize + TILE_GUTTER) + BOARD_PADDING * 2;
+}
+
+export function fittedTileSize(
+  sideLength: number,
+  availableSize: number,
+): number {
+  return (availableSize - BOARD_PADDING * 2) / sideLength - TILE_GUTTER;
 }
 
 export function clampViewport(
@@ -32,6 +52,27 @@ export function clampViewport(
   return {
     x: Math.max(minimum, Math.min(0, position.x)),
     y: Math.max(minimum, Math.min(0, position.y)),
+  };
+}
+
+export function normalizeViewport(
+  oversized: boolean,
+  zoom: number,
+  position: ViewportPosition,
+  sideLength: number,
+  viewportSize: number,
+): { zoom: number; position: ViewportPosition } {
+  if (!oversized) {
+    return { zoom: MIN_ZOOM, position: { x: 0, y: 0 } };
+  }
+  const boundedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+  return {
+    zoom: boundedZoom,
+    position: clampViewport(
+      position,
+      boardContentSize(sideLength, MIN_TILE_SIZE * boundedZoom),
+      viewportSize,
+    ),
   };
 }
 
