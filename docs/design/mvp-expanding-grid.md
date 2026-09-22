@@ -172,37 +172,51 @@ animation necessary to understand the resulting board.
 
 ### Increasingly large boards on phones
 
-The rules impose no gameplay size cap, and tiles cannot shrink indefinitely. As
-a **proposed interaction decision**, render the whole board as a fitted square
-while each rendered tile itself is at least 44 logical points wide and tall,
-excluding the six-point inter-cell gutter and board padding. When fitting would
-make tiles smaller than that provisional threshold, use a clipped
-two-dimensional viewport whose initial tile target remains 44 points. Clamp
-panning so blank space cannot be exposed. Visible text identifies which top,
-right, bottom, and left board edges are in view, so location never depends on
-color alone. Visible, accessible controls zoom in, zoom out, and fit/reset the
-viewport.
+The board uses two intentional presentation scales. **Touch-friendly scale** is
+the normal play presentation while every fitted tile can remain at least 44
+logical points. **Overview scale** continuously reduces tile and label size
+below that target when necessary so every row and column remains visible inside
+the square board frame. The 44-point value is therefore a touch-target
+preference, not a visual minimum; it must never cause clipping. Growth
+automatically returns the viewport to full-board fit, including the 8×8 board
+reached after the 128 milestone at `k=1`, and a labeled **Fit board** action
+remains available.
 
-One-finger cardinal swipes within the square board viewport remain gameplay
-moves at every board size; swipes on the inspector or viewport controls do not
-move tiles. Two-finger pan and pinch gestures navigate the oversized-board
-viewport only while it is needed. Accessible 44-point directional controls
-invoke the same gameplay move path, while a board inspector steps independently
-through rows and columns and reports each exact value or “empty,” including
-cells outside the visual viewport. Live announcements are limited to explicit
-inspector row/column actions and to score-changing merges, growth, and game
-over; game over takes priority when events coincide. Spawns, no-op gestures,
-viewport changes, and redraws are not announced. Edge status remains readable
-text rather than a live region.
+The normal gameplay surface is vertically non-scrolling. Its compact header,
+score, New game action, status, square board, scale label, and Controls action
+fit together at the default text size on the portrait acceptance viewport. A
+Controls modal contains next-game `k` adjustment, zoom and fit actions, the
+board inspector, and 44-point directional buttons; that modal may scroll
+internally. This keeps every one-finger cardinal swipe that begins on the board
+assigned to gameplay rather than page scrolling. At larger accessibility text
+sizes, secondary controls remain reachable in their scrolling modal.
 
-These threshold and gesture choices remain provisional until they are validated
-on the iPhone 13 Pro in the later physical-device acceptance step. That check
-must cover reachability, pinch/pan separation, screen-reader inspection, and
-system font scaling before the decisions are locked down. Clip off-screen cells
-and avoid animation-heavy work as boards become large. These presentation
-choices must not truncate engine state or create an undocumented maximum board
-size. If real device limits ultimately require a cap, that is a future gameplay-
-rule decision requiring specification and player-facing communication.
+Full-board fit is the minimum zoom. Zooming in may make the board larger than
+its frame; two-finger pan and pinch then navigate it, with panning clamped so
+blank space cannot be exposed. Visible text identifies overview versus
+touch-friendly or zoomed presentation and which board edges are visible, so
+state never depends on color alone. One-finger swipes remain moves at every
+scale. The inspector and directional buttons provide non-gesture access to every
+cell and move direction, including when a player uses a screen reader.
+
+Successful moves carry immutable source and destination coordinates from the
+pure engine. The presentation uses those coordinates to slide existing tiles in
+all four directions, lets both sources of a merge converge before showing the
+merged result, and gives the spawned tile a short fade/scale entrance. Input is
+briefly serialized during this transition so rapid gestures cannot overlap
+visual states; the resolved engine state is saved immediately. New games,
+restores, growth, and interrupted animations discard presentation-only motion
+state. With Reduce Motion enabled, the resolved board appears immediately and no
+movement animation is required to understand it. Announcements remain limited to
+explicit inspector actions and score-changing merges, growth, and game over.
+
+These scale and gesture choices remain subject to the iPhone 13 Pro physical-
+device acceptance step. That check must cover fit at and beyond 8×8,
+reachability, pinch/pan separation, screen-reader inspection, Reduce Motion, and
+system font scaling. Presentation choices must not truncate engine state or
+create an undocumented maximum board size. If real device limits ultimately
+require a cap, that is a future gameplay-rule decision requiring specification
+and player-facing communication.
 
 ## Architecture and data
 

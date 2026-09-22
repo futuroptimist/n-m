@@ -44,6 +44,19 @@ export interface MoveResult {
   readonly state: GameState;
   readonly moved: boolean;
   readonly events: readonly EngineEvent[];
+  readonly transition: readonly TileTransition[];
+}
+
+export interface TilePosition {
+  readonly row: number;
+  readonly column: number;
+}
+
+export interface TileTransition {
+  readonly from: TilePosition;
+  readonly to: TilePosition;
+  readonly exponent: TileExponent;
+  readonly merges: boolean;
 }
 
 export function tileValue(exponent: TileExponent): bigint {
@@ -92,17 +105,26 @@ export function move(
   const size = state.board.length;
   const output = emptyBoard(size);
   const mergedExponents: number[] = [];
+  const transition: TileTransition[] = [];
   let changed = false;
 
   for (let lineIndex = 0; lineIndex < size; lineIndex += 1) {
     const original = readLine(state.board, direction, lineIndex);
-    const { line, merges } = collapseLine(original);
+    const { line, merges, tiles } = collapseLine(original);
     if (line.some((cell, index) => cell !== original[index])) changed = true;
     mergedExponents.push(...merges);
     writeLine(output, direction, lineIndex, line);
+    for (const tile of tiles) {
+      transition.push({
+        from: linePosition(direction, lineIndex, tile.from, size),
+        to: linePosition(direction, lineIndex, tile.to, size),
+        exponent: tile.exponent,
+        merges: tile.merges,
+      });
+    }
   }
 
-  if (!changed) return { state, moved: false, events: [] };
+  if (!changed) return { state, moved: false, events: [], transition: [] };
 
   let highestCreatedExponent = state.highestCreatedExponent;
   const mergeEvents: Extract<EngineEvent, { type: 'merge' }>[] = [];
@@ -130,6 +152,7 @@ export function move(
   return {
     moved: true,
     events,
+    transition,
     state: {
       ...state,
       sideLength: targetSize,
@@ -168,22 +191,69 @@ function canMove(board: Board, direction: Direction): boolean {
 function collapseLine(line: readonly Cell[]): {
   line: Cell[];
   merges: number[];
+  tiles: {
+    from: number;
+    to: number;
+    exponent: TileExponent;
+    merges: boolean;
+  }[];
 } {
-  const tiles = line.filter((cell): cell is number => cell !== null);
+  const occupied = line.flatMap((cell, index) =>
+    cell === null ? [] : [{ exponent: cell, index }],
+  );
   const result: Cell[] = [];
   const merges: number[] = [];
-  for (let index = 0; index < tiles.length; index += 1) {
-    if (tiles[index] === tiles[index + 1]) {
-      const exponent = tiles[index] + 1;
+  const tiles: {
+    from: number;
+    to: number;
+    exponent: TileExponent;
+    merges: boolean;
+  }[] = [];
+  for (let index = 0; index < occupied.length; index += 1) {
+    const destination = result.length;
+    if (occupied[index].exponent === occupied[index + 1]?.exponent) {
+      const exponent = occupied[index].exponent + 1;
       result.push(exponent);
       merges.push(exponent);
+      tiles.push(
+        {
+          from: occupied[index].index,
+          to: destination,
+          exponent: occupied[index].exponent,
+          merges: true,
+        },
+        {
+          from: occupied[index + 1].index,
+          to: destination,
+          exponent: occupied[index + 1].exponent,
+          merges: true,
+        },
+      );
       index += 1;
     } else {
-      result.push(tiles[index]);
+      result.push(occupied[index].exponent);
+      tiles.push({
+        from: occupied[index].index,
+        to: destination,
+        exponent: occupied[index].exponent,
+        merges: false,
+      });
     }
   }
   while (result.length < line.length) result.push(null);
-  return { line: result, merges };
+  return { line: result, merges, tiles };
+}
+
+function linePosition(
+  direction: Direction,
+  line: number,
+  offset: number,
+  size: number,
+): TilePosition {
+  if (direction === 'left') return { row: line, column: offset };
+  if (direction === 'right') return { row: line, column: size - 1 - offset };
+  if (direction === 'up') return { row: offset, column: line };
+  return { row: size - 1 - offset, column: line };
 }
 
 function readLine(board: Board, direction: Direction, line: number): Cell[] {

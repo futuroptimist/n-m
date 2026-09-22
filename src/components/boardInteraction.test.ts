@@ -6,13 +6,14 @@ import {
   MIN_TILE_SIZE,
   TILE_GUTTER,
   boardContentSize,
+  boardScale,
   cellDescription,
   clampViewport,
   edgeDescription,
   fittedTileSize,
   minimumBoardSize,
-  needsViewport,
   normalizeViewport,
+  planTileMotion,
   selectMoveAnnouncement,
   shouldCaptureBoardGesture,
   visibleEdges,
@@ -25,16 +26,21 @@ test('captures gameplay swipes on every board and viewport gestures only when ov
   assert.equal(shouldCaptureBoardGesture(true, 2, 0, 0), true);
 });
 
-test('switches below the 44-point rendered-tile threshold including gutters', () => {
+test('continuous fit can shrink below the touch-friendly target without clipping', () => {
   assert.equal(MIN_TILE_SIZE, 44);
   assert.equal(TILE_GUTTER, 6);
   assert.equal(BOARD_PADDING, 3);
   assert.equal(minimumBoardSize(10), 506);
   assert.equal(boardContentSize(10, 88), 946);
-  assert.equal(needsViewport(10, 506), false);
-  assert.equal(needsViewport(10, 505), true);
   assert.equal(fittedTileSize(10, 506), 44);
-  assert.equal(needsViewport(4, 0), false);
+  assert.deepEqual(boardScale(8, 358), {
+    fitTileSize: 38,
+    overview: true,
+    minimumZoom: 1,
+    maximumZoom: 2.5,
+  });
+  assert.equal(boardContentSize(8, boardScale(8, 358).fitTileSize), 358);
+  assert.equal(boardScale(4, 358).overview, false);
 });
 
 test('clamps viewport positions without exposing blank space', () => {
@@ -48,15 +54,42 @@ test('clamps viewport positions without exposing blank space', () => {
   });
 });
 
-test('normalizes fitted viewports and clamps oversized viewports', () => {
-  assert.deepEqual(normalizeViewport(false, 2, { x: -40, y: -20 }, 10, 300), {
+test('normalizes zoom to dynamic fit bounds and clamps panning', () => {
+  assert.deepEqual(normalizeViewport(0.5, { x: -40, y: -20 }, 10, 506), {
     zoom: 1,
     position: { x: 0, y: 0 },
   });
-  assert.deepEqual(normalizeViewport(true, 3, { x: -900, y: 10 }, 10, 300), {
+  assert.deepEqual(normalizeViewport(3, { x: -900, y: 10 }, 10, 506), {
     zoom: 2.5,
-    position: { x: -866, y: 0 },
+    position: { x: -660, y: 0 },
   });
+});
+
+test('plans deterministic slide and merge geometry from engine transitions', () => {
+  assert.deepEqual(
+    planTileMotion(
+      [
+        {
+          from: { row: 2, column: 3 },
+          to: { row: 0, column: 3 },
+          exponent: 4,
+          merges: true,
+        },
+      ],
+      50,
+    ),
+    [
+      {
+        key: '2-3-0',
+        exponent: 4,
+        fromX: 150,
+        fromY: 100,
+        toX: 150,
+        toY: 0,
+        merges: true,
+      },
+    ],
+  );
 });
 
 test('describes visible edges without relying on color', () => {
