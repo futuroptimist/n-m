@@ -5,10 +5,9 @@ import {
   type EngineEvent,
 } from '../engine';
 
-export const MIN_TILE_SIZE = 44;
+export const TOUCH_TILE_SIZE = 44;
 export const TILE_GUTTER = 6;
 export const BOARD_PADDING = 3;
-export const MIN_ZOOM = 1;
 export const MAX_ZOOM = 2.5;
 
 const MIN_SWIPE_DISTANCE = 32;
@@ -57,14 +56,14 @@ export function shouldCaptureBoardGesture(
 }
 
 export function needsViewport(
-  sideLength: number,
+  contentSize: number,
   availableSize: number,
 ): boolean {
-  return availableSize > 0 && minimumBoardSize(sideLength) > availableSize;
+  return availableSize > 0 && contentSize > availableSize + 0.5;
 }
 
 export function minimumBoardSize(sideLength: number): number {
-  return boardContentSize(sideLength, MIN_TILE_SIZE);
+  return boardContentSize(sideLength, TOUCH_TILE_SIZE);
 }
 
 export function boardContentSize(
@@ -81,6 +80,23 @@ export function fittedTileSize(
   return (availableSize - BOARD_PADDING * 2) / sideLength - TILE_GUTTER;
 }
 
+export function boardScaleBounds(
+  sideLength: number,
+  availableSize: number,
+): { fit: number; touchFriendly: number; maximum: number } {
+  if (availableSize <= 0)
+    return { fit: 1, touchFriendly: 1, maximum: MAX_ZOOM };
+  const fit = Math.min(
+    MAX_ZOOM,
+    Math.max(0.1, fittedTileSize(sideLength, availableSize) / TOUCH_TILE_SIZE),
+  );
+  return { fit, touchFriendly: Math.max(1, fit), maximum: MAX_ZOOM };
+}
+
+export function scaleMode(scale: number): 'overview' | 'touch-friendly' {
+  return scale < 1 - 0.001 ? 'overview' : 'touch-friendly';
+}
+
 export function clampViewport(
   position: ViewportPosition,
   contentSize: number,
@@ -94,21 +110,18 @@ export function clampViewport(
 }
 
 export function normalizeViewport(
-  oversized: boolean,
   zoom: number,
   position: ViewportPosition,
   sideLength: number,
   viewportSize: number,
 ): { zoom: number; position: ViewportPosition } {
-  if (!oversized) {
-    return { zoom: MIN_ZOOM, position: { x: 0, y: 0 } };
-  }
-  const boundedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+  const bounds = boardScaleBounds(sideLength, viewportSize);
+  const boundedZoom = Math.max(bounds.fit, Math.min(bounds.maximum, zoom));
   return {
     zoom: boundedZoom,
     position: clampViewport(
       position,
-      boardContentSize(sideLength, MIN_TILE_SIZE * boundedZoom),
+      boardContentSize(sideLength, TOUCH_TILE_SIZE * boundedZoom),
       viewportSize,
     ),
   };

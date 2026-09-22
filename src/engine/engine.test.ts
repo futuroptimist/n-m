@@ -121,6 +121,62 @@ test('moves in every direction and merges each tile at most once', () => {
   );
 });
 
+test('move transitions preserve each source and merge destination', () => {
+  const horizontal = move(
+    state([
+      [1, null, 1, 2],
+      [null, null, null, null],
+      [null, null, null, null],
+      [null, null, null, null],
+    ]),
+    'left',
+    sequence(0, 0.999),
+  );
+  assert.deepEqual(horizontal.transitions, [
+    {
+      from: { row: 0, column: 0 },
+      to: { row: 0, column: 0 },
+      exponent: 1,
+      merged: true,
+    },
+    {
+      from: { row: 0, column: 2 },
+      to: { row: 0, column: 0 },
+      exponent: 1,
+      merged: true,
+    },
+    {
+      from: { row: 0, column: 3 },
+      to: { row: 0, column: 1 },
+      exponent: 2,
+      merged: false,
+    },
+  ]);
+
+  const vertical = move(
+    state([
+      [null, 1],
+      [null, 1],
+    ]),
+    'down',
+    sequence(0, 0.999),
+  );
+  assert.deepEqual(vertical.transitions, [
+    {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: 1 },
+      exponent: 1,
+      merged: true,
+    },
+    {
+      from: { row: 0, column: 1 },
+      to: { row: 1, column: 1 },
+      exponent: 1,
+      merged: true,
+    },
+  ]);
+});
+
 test('multiple merges accumulate exact score and do not chain merge', () => {
   const result = move(
     state([
@@ -235,6 +291,7 @@ test('no-op moves preserve state and consume no randomness', () => {
   assert.equal(result.state, input);
   assert.equal(result.moved, false);
   assert.deepEqual(result.events, []);
+  assert.deepEqual(result.transitions, []);
   assert.equal(calls, 0);
 });
 
