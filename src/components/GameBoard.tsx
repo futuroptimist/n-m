@@ -1,6 +1,13 @@
 /* Gesture callbacks intentionally read current snapshots before React commits. */
 /* eslint-disable react-hooks/refs */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -28,7 +35,7 @@ import {
   cellDescription,
   clampViewport,
   edgeDescription,
-  fittedTileSize,
+  fittedBoardGeometry,
   maximumZoom,
   normalizeViewport,
   planTileMotion,
@@ -92,14 +99,33 @@ export function GameBoard({
   const geometry = useRef({ sideLength: game.sideLength, viewportSize: 0 });
   const onMoveRef = useRef(onMove);
 
-  const tileSize = Math.max(0, fittedTileSize(game.sideLength, viewportSize));
-  const contentSize = boardContentSize(game.sideLength, tileSize * zoom);
+  const growth = moveResult?.events.find((event) => event.type === 'growth');
+  const presentationSideLength =
+    growth?.type === 'growth' ? growth.from : game.sideLength;
+  const boardGeometry = fittedBoardGeometry(
+    presentationSideLength,
+    viewportSize,
+  );
+  const tileSize = boardGeometry.tileSize;
+  const renderedGutter = boardGeometry.gutter * zoom;
+  const renderedPadding = boardGeometry.padding * zoom;
+  const contentSize = boardContentSize(
+    presentationSideLength,
+    tileSize * zoom,
+    renderedGutter,
+    renderedPadding,
+  );
   const clampedPosition = clampViewport(position, contentSize, viewportSize);
   const enlarged = zoom > FIT_ZOOM + 0.01;
   const edges = visibleEdges(clampedPosition, contentSize, viewportSize);
   const motions = planTileMotion(
     moveResult?.transitions ?? [],
     tileSize * zoom,
+    renderedGutter,
+    renderedPadding,
+  );
+  const incomingCells = new Set(
+    (moveResult?.transitions ?? []).map(({ to }) => `${to.row}:${to.column}`),
   );
   const spawn = moveResult?.events.find((event) => event.type === 'spawn');
 
@@ -138,13 +164,18 @@ export function GameBoard({
   }, []);
 
   useEffect(() => {
+    if (moveResult !== null) return;
     if (game.sideLength > previousSideLength.current) {
+      geometry.current = {
+        sideLength: game.sideLength,
+        viewportSize: geometry.current.viewportSize,
+      };
       applyViewport(FIT_ZOOM, { x: 0, y: 0 });
     }
     previousSideLength.current = game.sideLength;
-  }, [applyViewport, game.sideLength]);
+  }, [applyViewport, game.sideLength, moveResult]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (moveResult === null) return;
     progress.stopAnimation();
     spawnProgress.stopAnimation();
@@ -273,44 +304,51 @@ export function GameBoard({
                   { translateX: clampedPosition.x },
                   { translateY: clampedPosition.y },
                 ],
+                padding: renderedPadding,
                 width: contentSize,
               },
             ]}
           >
-            {game.board.map((boardRow, rowIndex) => (
-              <View key={`row-${rowIndex}`} style={styles.row}>
-                {boardRow.map((exponent, columnIndex) => {
-                  const isSpawn =
-                    spawn?.type === 'spawn' &&
-                    spawn.row === rowIndex &&
-                    spawn.column === columnIndex;
-                  return (
-                    <Tile
-                      exponent={exponent}
-                      key={`cell-${rowIndex}-${columnIndex}`}
-                      size={tileSize * zoom}
-                      style={
-                        sliding && exponent !== null
-                          ? { opacity: 0 }
-                          : isSpawn && moveResult !== null && !reduceMotion
-                            ? {
-                                opacity: spawnProgress,
-                                transform: [
-                                  {
-                                    scale: spawnProgress.interpolate({
-                                      inputRange: [0, 1],
-                                      outputRange: [0.7, 1],
-                                    }),
-                                  },
-                                ],
-                              }
-                            : undefined
-                      }
-                    />
-                  );
-                })}
-              </View>
-            ))}
+            {game.board
+              .slice(0, presentationSideLength)
+              .map((boardRow, rowIndex) => (
+                <View key={`row-${rowIndex}`} style={styles.row}>
+                  {boardRow
+                    .slice(0, presentationSideLength)
+                    .map((exponent, columnIndex) => {
+                      const isSpawn =
+                        spawn?.type === 'spawn' &&
+                        spawn.row === rowIndex &&
+                        spawn.column === columnIndex;
+                      return (
+                        <Tile
+                          exponent={exponent}
+                          gutter={renderedGutter}
+                          key={`cell-${rowIndex}-${columnIndex}`}
+                          size={tileSize * zoom}
+                          style={
+                            sliding &&
+                            incomingCells.has(`${rowIndex}:${columnIndex}`)
+                              ? { opacity: 0 }
+                              : isSpawn && moveResult !== null && !reduceMotion
+                                ? {
+                                    opacity: spawnProgress,
+                                    transform: [
+                                      {
+                                        scale: spawnProgress.interpolate({
+                                          inputRange: [0, 1],
+                                          outputRange: [0.7, 1],
+                                        }),
+                                      },
+                                    ],
+                                  }
+                                : undefined
+                          }
+                        />
+                      );
+                    })}
+                </View>
+              ))}
             {sliding
               ? motions.map((motion) => (
                   <Animated.View
@@ -339,7 +377,11 @@ export function GameBoard({
                       },
                     ]}
                   >
-                    <Tile exponent={motion.exponent} size={tileSize * zoom} />
+                    <Tile
+                      exponent={motion.exponent}
+                      gutter={0}
+                      size={tileSize * zoom}
+                    />
                   </Animated.View>
                 ))
               : null}
@@ -488,10 +530,12 @@ export function GameBoard({
 
 function Tile({
   exponent,
+  gutter,
   size,
   style,
 }: {
   exponent: number | null;
+  gutter: number;
   size: number;
   style?: object;
 }) {
@@ -504,6 +548,7 @@ function Tile({
           backgroundColor:
             exponent === null ? colors.empty : tileBackground(exponent),
           height: size,
+          margin: gutter / 2,
           width: size,
         },
         style,
@@ -572,7 +617,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     width: '100%',
   },
-  board: { backgroundColor: colors.board, borderRadius: 10, padding: 3 },
+  board: { backgroundColor: colors.board, borderRadius: 10 },
   row: { flexDirection: 'row' },
   cell: {
     alignItems: 'center',
@@ -580,7 +625,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 1,
     justifyContent: 'center',
-    margin: 3,
   },
   motionTile: { position: 'absolute' },
   tileValue: {

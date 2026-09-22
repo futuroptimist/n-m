@@ -227,12 +227,14 @@ function collapseLine(line: readonly Cell[]): {
       index += 1;
     } else {
       result.push(tiles[index].exponent);
-      movements.push({
-        from: tiles[index].offset,
-        to: destination,
-        exponent: tiles[index].exponent,
-        merges: false,
-      });
+      if (tiles[index].offset !== destination) {
+        movements.push({
+          from: tiles[index].offset,
+          to: destination,
+          exponent: tiles[index].exponent,
+          merges: false,
+        });
+      }
     }
   }
   while (result.length < line.length) result.push(null);

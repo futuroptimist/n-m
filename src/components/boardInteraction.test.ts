@@ -10,6 +10,7 @@ import {
   cellDescription,
   clampViewport,
   edgeDescription,
+  fittedBoardGeometry,
   fittedTileSize,
   minimumBoardSize,
   maximumZoom,
@@ -39,6 +40,25 @@ test('fits every board continuously and offers a touch-friendly enlarged scale',
   assert.equal(touchFriendlyZoom(8, 360), 44 / 38.25);
   assert.equal(FIT_ZOOM, 1);
   assert.equal(maximumZoom(20, 320) > 2.5, true);
+
+  for (const [sideLength, frame] of [
+    [8, 360],
+    [53, 320],
+    [58, 344],
+  ] as const) {
+    const geometry = fittedBoardGeometry(sideLength, frame);
+    assert.equal(geometry.tileSize > 0, true);
+    assert.equal(
+      boardContentSize(
+        sideLength,
+        geometry.tileSize,
+        geometry.gutter,
+        geometry.padding,
+      ) <=
+        frame + Number.EPSILON * frame,
+      true,
+    );
+  }
 });
 
 test('clamps viewport positions without exposing blank space', () => {
@@ -59,7 +79,7 @@ test('normalizes full-board fit and clamps enlarged viewports', () => {
   });
   assert.deepEqual(normalizeViewport(3, { x: -900, y: 10 }, 10, 300), {
     zoom: 2.5,
-    position: { x: -351, y: 0 },
+    position: { x: -450, y: 0 },
   });
 });
 
@@ -86,19 +106,19 @@ test('plans deterministic tile paths including duplicate-value merges', () => {
       {
         key: '0:1:0',
         exponent: 1,
-        fromX: 53,
-        fromY: 3,
-        toX: 3,
-        toY: 3,
+        fromX: 56,
+        fromY: 6,
+        toX: 6,
+        toY: 6,
         merges: true,
       },
       {
         key: '0:2:1',
         exponent: 1,
-        fromX: 103,
-        fromY: 3,
-        toX: 3,
-        toY: 3,
+        fromX: 106,
+        fromY: 6,
+        toX: 6,
+        toY: 6,
         merges: true,
       },
     ],
