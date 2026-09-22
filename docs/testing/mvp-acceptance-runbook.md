@@ -14,11 +14,11 @@ device result from CI or claim success for an unperformed check. Completion
 requires testing the exact candidate SHA; if a newer commit is tested instead,
 record that SHA as a separate candidate and repeat affected checks.
 
-The current interaction threshold is provisional. A naturally played session
-must reach an oversized board for the large-board checks. If it cannot do so in
-the bounded session chosen by the operator, record those checks as **Not run**
-and block final MVP acceptance. Do not add or use an undocumented fixture and do
-not extrapolate from automated interaction tests.
+The continuous-fit interaction still requires live validation. A naturally
+played session must reach the post-128 8×8 board for the large-board checks. If
+it cannot do so in the bounded session chosen by the operator, record those
+checks as **Not run** and block final MVP acceptance. Do not add or use an
+undocumented fixture and do not extrapolate from automated interaction tests.
 
 ## 1. Safe static preflight
 
@@ -192,9 +192,10 @@ Perform the shared live functional matrix, then:
   announcements for spawns, no-op swipes, viewport changes, or redraws. When
   game over coincides with other events, it takes priority.
 - Increase iOS Larger Text/Dynamic Type through a large accessibility size,
-  relaunch, and confirm labels remain readable, controls reachable, the screen
-  scrolls where necessary, and board values remain identifiable. Restore the
-  original setting and record both sizes.
+  relaunch, and confirm labels remain readable and controls remain reachable
+  (using the internally scrollable Controls panel where necessary). Confirm the
+  normal gameplay surface itself does not vertically scroll and board values
+  remain identifiable. Restore the original setting and record both sizes.
 - Enable Reduce Motion, then perform a slide, merge, and board growth. Confirm
   each resulting board state remains understandable and movement, merge, and
   growth transitions update immediately or use restrained fades. Restore the
@@ -205,26 +206,37 @@ VoiceOver off. Then turn VoiceOver on for accessible-control and inspector
 focus/speech/announcement tests; do not treat screen-reader gestures as ordinary
 gameplay gesture evidence. Record the screen-reader state for each result.
 
-### Oversized-board gate
+### Natural-play expanding-board gate
 
-In a naturally played `k=1` session, continue until the fitted tile calculation
-crosses the 44-point threshold and viewport text/controls appear. Then confirm:
+In a naturally played `k=1` session, continue through the first merged 128 so
+the board reaches 8×8, then continue to any later growth reached within the
+recorded time box. Confirm:
 
-1. the board remains fitted before the threshold and switches to a clipped
-   viewport only after it;
-2. one-finger cardinal swipes still move tiles, while two-finger pan and pinch
-   navigate only the oversized viewport and never create a move;
-3. Zoom +, Zoom −, and Fit / reset work, expose correct disabled bounds, and do
-   not alter game state;
-4. top/right/bottom/left visible-edge text updates without relying on color;
-5. panning, pinching, and each zoom level never expose blank area beyond the
-   board; and
-6. the inspector reaches and accurately reports offscreen corner/interior cells
-   without moving the viewport or tiles.
+1. before overview is needed the status says **Touch-friendly · full board
+   fit**; at 8×8 it says **Overview · full board fit** and every row, column,
+   cell, and outer edge is visible with no clipping or blank cells;
+2. the header, score/New game, status, complete board, and obvious Controls
+   action fit at default text size without vertically scrolling the gameplay
+   screen;
+3. one-finger up/down/left/right swipes beginning on the board move tiles and
+   never scroll a parent page;
+4. Controls opens accessibly and its internal scroll exposes `k` adjustment,
+   Zoom +, Zoom −, Fit board, inspector, and four labeled directional buttons;
+5. Zoom +, Zoom −, Fit board, two-finger pan, and pinch work; Zoom − reaches
+   dynamic full-board fit, while enlarged panning never exposes blank area;
+6. top/right/bottom/left visible-edge text updates without relying on color, and
+   the inspector accurately reaches corner/interior cells independently of the
+   visual viewport;
+7. tiles visibly slide for all four directions, merge sources converge before
+   the result resolves, and the spawned tile appears only with the resolved
+   state; rapid input, growth, New game, interruption, and relaunch leave no
+   stale or duplicate overlay; and
+8. with Reduce Motion enabled, the same moves, merge, spawn, and growth update
+   immediately without spatial animation or stale state.
 
 Time-boxing is allowed, but omission is not a pass. If natural play does not
-reach this state within the recorded bound, mark every unobserved large-board
-item **Not run**, identify the missing deterministic live-test fixture as an
+reach 8×8 within the recorded bound, mark every unobserved large-board item
+**Not run**, identify the missing deterministic live-test fixture as an
 acceptance blocker, and block final MVP acceptance.
 
 ## 4. iPhone 13 Pro
@@ -264,13 +276,13 @@ force-quit relaunches, and confirm the game UI from the assessed checkout loads;
 the development-client bundle opening is insufficient. Stop on any build,
 bundle, launch, Metro, or game-load failure.
 
-Run the complete shared, simulator accessibility, and oversized-board matrices
+Run the complete shared, simulator accessibility, and expanding-board matrices
 again on the phone; simulator evidence cannot be reused. Additionally verify:
 
-- controls, inspector, viewport buttons, and the whole scrollable screen are
-  reachable when held normally;
+- controls, inspector, viewport buttons, and the whole non-scrolling gameplay
+  screen and Controls panel are reachable when held normally;
 - physical one-finger swipes remain distinct from two-finger pan/pinch on an
-  oversized board, including near screen and viewport edges;
+  expanded board, including near screen and viewport edges;
 - at default and a large system font size, text remains readable and controls
   remain reachable; and
 - with Reduce Motion enabled, slide, merge, and growth transitions update
@@ -403,7 +415,7 @@ relaunch, require the previously recorded board and dimensions, score, active
 `k`, milestone, and status; an unexpected reset fails. Merely opening the
 development-client bundle is not a pass.
 
-Run the shared functional matrix, the natural-play oversized-board gate, and the
+Run the shared functional matrix, the natural-play expanding-board gate, and the
 applicable non-color, inspector, announcement, and large-font checks. Enable
 TalkBack and use swipe/focus navigation to verify logical focus, descriptive
 control labels/roles/states, inspector access, and bounded announcements. Verify
@@ -440,10 +452,10 @@ Use one result per environment where the row applies.
 | Save / resume                    | Exact run returns after background and true relaunch                                                      | Before/after captures and relaunch steps                                          |
 | Recovery behavior                | Automated tests cover valid, corrupt, newer, read/write/clear failure behavior without silent destruction | Named test command/output; live result separately Not run unless safely exercised |
 | Small-board swipe                | Fitted board accepts deliberate one-finger swipes in four directions                                      | Short video or action/result notes                                                |
-| Large-board viewport             | Threshold, gesture separation, zoom/reset, edges, clamping, and offscreen inspection all work             | Video/screenshots for each item, or Not run blocker                               |
+| Large-board overview             | Natural 128/8×8 and later growth fully fit; gestures, zoom/fit, edges, clamping, and inspection work      | Video/screenshots for each item, or Not run blocker                               |
 | Inspector / directional controls | 44-point accessible controls; exact one-based cell text; all rows/columns and moves reachable             | Assistive-tech notes and representative captures                                  |
 | Announcements                    | Only inspector actions, merges, growth, and game over announce; game over has priority                    | VoiceOver/TalkBack recording or transcript                                        |
-| Dynamic Type / font size         | Large text is readable, operable, and scrollable without loss of meaning                                  | Default/large screenshots and configured size                                     |
+| Dynamic Type / font size         | Large text is readable; secondary controls may scroll internally without loss of meaning                  | Default/large screenshots and configured size                                     |
 | Reduced motion                   | With the platform preference enabled, slide, merge, and growth states remain clear without full motion    | Preference name/value and video or action/result notes                            |
 | VoiceOver / TalkBack             | Logical focus; names, roles, states, bounds; no focus trap; non-color meaning                             | Version/settings and narrated transcript/video                                    |
 | iOS Simulator                    | All applicable simulator cases run on the recorded runtime                                                | Device/runtime/Xcode versions and matrix results                                  |
@@ -451,7 +463,7 @@ Use one result per environment where the row applies.
 | Android                          | Full applicable matrix on discovered target; physical-only rows distinguished                             | Model or AVD/API, Android/JDK/SDK versions, captures                              |
 
 Any required **Fail** blocks acceptance. Any required **Not run**, especially
-the natural-play oversized-board checks on the required targets, also blocks
+the natural-play expanding-board checks on the required targets, also blocks
 acceptance until it is executed against the same candidate or a separately
 recorded newer candidate.
 
@@ -501,7 +513,7 @@ mark them **Not run**; never prefill a result based on expectation.
 | Recovery behavior (automated)    |             |                       |                               |
 | Recovery behavior (live)         |             |                       |                               |
 | Small-board swipe                |             |                       |                               |
-| Large-board viewport             |             |                       |                               |
+| Large-board overview             |             |                       |                               |
 | Inspector / directional controls |             |                       |                               |
 | Announcements                    |             |                       |                               |
 | Dynamic Type / font size         |             |                       |                               |

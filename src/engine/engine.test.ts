@@ -137,6 +137,50 @@ test('multiple merges accumulate exact score and do not chain merge', () => {
   assert.equal(result.state.highestCreatedExponent, 3);
 });
 
+test('move transition preserves exact sources for duplicate tiles', () => {
+  const result = move(
+    state([
+      [1, 1, 1, 1],
+      [null, null, null, null],
+      [null, null, null, null],
+      [null, null, null, null],
+    ]),
+    'right',
+    sequence(0, 0),
+  );
+  assert.deepEqual(result.transition?.tiles.slice(0, 4), [
+    {
+      from: { row: 0, column: 3 },
+      to: { row: 0, column: 3 },
+      exponent: 1,
+      merges: true,
+    },
+    {
+      from: { row: 0, column: 2 },
+      to: { row: 0, column: 3 },
+      exponent: 1,
+      merges: true,
+    },
+    {
+      from: { row: 0, column: 1 },
+      to: { row: 0, column: 2 },
+      exponent: 1,
+      merges: true,
+    },
+    {
+      from: { row: 0, column: 0 },
+      to: { row: 0, column: 2 },
+      exponent: 1,
+      merges: true,
+    },
+  ]);
+  assert.deepEqual(result.transition?.spawn, {
+    row: 0,
+    column: 0,
+    exponent: 1,
+  });
+});
+
 test('k=1 expands at the merged 4, 8, and 16 milestones', () => {
   let sideLength = 2;
   for (const mergedExponent of [2, 3, 4]) {
@@ -235,6 +279,7 @@ test('no-op moves preserve state and consume no randomness', () => {
   assert.equal(result.state, input);
   assert.equal(result.moved, false);
   assert.deepEqual(result.events, []);
+  assert.equal(result.transition, null);
   assert.equal(calls, 0);
 });
 
