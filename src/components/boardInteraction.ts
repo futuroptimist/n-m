@@ -3,6 +3,7 @@ import {
   type Cell,
   type Direction,
   type EngineEvent,
+  type MoveTransition,
 } from '../engine';
 
 export const MIN_TILE_SIZE = 44;
@@ -63,6 +64,12 @@ export function needsViewport(
   return availableSize > 0 && minimumBoardSize(sideLength) > availableSize;
 }
 
+export function maximumZoom(sideLength: number, availableSize: number): number {
+  const fitTile = fittedTileSize(sideLength, availableSize);
+  if (fitTile <= 0) return MAX_ZOOM;
+  return Math.max(MAX_ZOOM, MIN_TILE_SIZE / fitTile);
+}
+
 export function minimumBoardSize(sideLength: number): number {
   return boardContentSize(sideLength, MIN_TILE_SIZE);
 }
@@ -94,24 +101,51 @@ export function clampViewport(
 }
 
 export function normalizeViewport(
-  oversized: boolean,
+  _overview: boolean,
   zoom: number,
   position: ViewportPosition,
   sideLength: number,
   viewportSize: number,
 ): { zoom: number; position: ViewportPosition } {
-  if (!oversized) {
-    return { zoom: MIN_ZOOM, position: { x: 0, y: 0 } };
-  }
-  const boundedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+  const boundedZoom = Math.max(
+    MIN_ZOOM,
+    Math.min(maximumZoom(sideLength, viewportSize), zoom),
+  );
+  const fitTile = Math.max(0, fittedTileSize(sideLength, viewportSize));
   return {
     zoom: boundedZoom,
     position: clampViewport(
       position,
-      boardContentSize(sideLength, MIN_TILE_SIZE * boundedZoom),
+      boardContentSize(sideLength, fitTile * boundedZoom),
       viewportSize,
     ),
   };
+}
+
+export interface PlannedTileMovement {
+  readonly key: string;
+  readonly exponent: number;
+  readonly merges: boolean;
+  readonly left: number;
+  readonly top: number;
+  readonly translateX: number;
+  readonly translateY: number;
+}
+
+export function planTileTransitions(
+  transition: MoveTransition,
+  tileSize: number,
+): readonly PlannedTileMovement[] {
+  const pitch = tileSize + TILE_GUTTER;
+  return transition.tiles.map((tile, index) => ({
+    key: `${tile.from.row}-${tile.from.column}-${index}`,
+    exponent: tile.exponent,
+    merges: tile.merges,
+    left: BOARD_PADDING + tile.from.column * pitch,
+    top: BOARD_PADDING + tile.from.row * pitch,
+    translateX: (tile.to.column - tile.from.column) * pitch,
+    translateY: (tile.to.row - tile.from.row) * pitch,
+  }));
 }
 
 export function visibleEdges(

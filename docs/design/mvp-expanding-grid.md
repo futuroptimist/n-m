@@ -152,8 +152,10 @@ The main screen has one gameplay hierarchy:
 2. Status text showing the immutable active `k` and the next growth milestone
    (for example, “Next growth: merge 16 → 5×5”).
 3. Square board with readable tile labels and clear empty cells.
-4. New-game settings with `k` decrement/value/increment controls, short setting
-   help, and confirmation when an unfinished run would be discarded.
+4. An obvious **Controls** disclosure containing new-game `k`
+   decrement/value/increment controls, zoom/fit actions, the board inspector,
+   and accessible directional buttons. The disclosed panel may scroll, while the
+   normal gameplay surface does not.
 5. A game-over state that announces the final score and offers a new game while
    leaving the final board understandable.
 
@@ -164,45 +166,59 @@ accessible controls with descriptive names, logical focus order, adequate touch
 targets, and disabled state communicated beyond color. Announce score, board
 growth, and game over without flooding screen-reader output on every animation.
 
+At default text size on a portrait iPhone 17-sized viewport, the header,
+score/new-game action, status, complete fitted board, and Controls action remain
+on one vertically non-scrolling screen. There is no parent vertical scroller to
+claim a one-finger swipe begun on the board; all four such cardinal swipes are
+game moves.
+
 Tile values need sufficient foreground/background contrast and labels that
 remain legible under system font scaling. Do not rely on color alone to convey
-values. Honor reduced-motion preferences: replace movement/merge/growth
-transitions with immediate state updates or restrained fades, and never make
-animation necessary to understand the resulting board.
+values. Ordinary moves visibly slide existing tiles from their immutable source
+cells to destination cells. Both source tiles converge before a merge result is
+shown, and the spawned tile resolves after the slide. While this short
+transition is active, further move input waits rather than overlapping it;
+persistence still records only the completed engine state. New games, restored
+games, growth, and interrupted rendering discard any obsolete presentation
+overlay. Honor reduced-motion preferences by applying the completed state
+immediately, and never make animation necessary to understand the result.
 
 ### Increasingly large boards on phones
 
-The rules impose no gameplay size cap, and tiles cannot shrink indefinitely. As
-a **proposed interaction decision**, render the whole board as a fitted square
-while each rendered tile itself is at least 44 logical points wide and tall,
-excluding the six-point inter-cell gutter and board padding. When fitting would
-make tiles smaller than that provisional threshold, use a clipped
-two-dimensional viewport whose initial tile target remains 44 points. Clamp
-panning so blank space cannot be exposed. Visible text identifies which top,
-right, bottom, and left board edges are in view, so location never depends on
-color alone. Visible, accessible controls zoom in, zoom out, and fit/reset the
-viewport.
+The rules impose no gameplay size cap. As a **maintainer-required interaction
+revision**, replace the provisional fixed 44-point visual floor with two
+intentional scales. **Touch-friendly scale** is used when the complete board
+fits with tiles at least 44 logical points. **Overview scale** continuously
+shrinks cells below that size when necessary so every row and column remains
+visible inside the square frame, including the post-128 8×8 board and every
+later growth size. A readable text label identifies the current scale without
+depending on color. Growth automatically returns to full-board fit.
+
+Fit is the dynamic minimum zoom and always shows the entire board without
+clipping or blank cells. Zoom − can always return to it; Zoom +, pinch, and
+two-finger pan provide closer inspection. When enlarged, clamp panning so blank
+space cannot be exposed and identify the visible edges in text. The Controls
+panel contains a clearly named **Fit board** action plus zoom controls.
 
 One-finger cardinal swipes within the square board viewport remain gameplay
 moves at every board size; swipes on the inspector or viewport controls do not
-move tiles. Two-finger pan and pinch gestures navigate the oversized-board
-viewport only while it is needed. Accessible 44-point directional controls
-invoke the same gameplay move path, while a board inspector steps independently
-through rows and columns and reports each exact value or “empty,” including
-cells outside the visual viewport. Live announcements are limited to explicit
-inspector row/column actions and to score-changing merges, growth, and game
-over; game over takes priority when events coincide. Spawns, no-op gestures,
-viewport changes, and redraws are not announced. Edge status remains readable
-text rather than a live region.
+move tiles. Two-finger pan and pinch gestures navigate an enlarged board.
+Accessible 44-point directional controls invoke the same gameplay move path,
+while a board inspector steps independently through rows and columns and reports
+each exact value or “empty,” including cells outside the visual viewport. Live
+announcements are limited to explicit inspector row/column actions and to
+score-changing merges, growth, and game over; game over takes priority when
+events coincide. Spawns, no-op gestures, viewport changes, and redraws are not
+announced. Edge status remains readable text rather than a live region.
 
-These threshold and gesture choices remain provisional until they are validated
-on the iPhone 13 Pro in the later physical-device acceptance step. That check
-must cover reachability, pinch/pan separation, screen-reader inspection, and
-system font scaling before the decisions are locked down. Clip off-screen cells
-and avoid animation-heavy work as boards become large. These presentation
-choices must not truncate engine state or create an undocumented maximum board
-size. If real device limits ultimately require a cap, that is a future gameplay-
-rule decision requiring specification and player-facing communication.
+These scale and gesture choices still require validation on the iPhone 13 Pro in
+the later physical-device acceptance step. That check must cover overview
+legibility, reachability, pinch/pan separation, screen-reader inspection, and
+system font scaling. Enlarged views may clip off-screen cells, but fit never
+does. These presentation choices must not truncate engine state or create an
+undocumented maximum board size. If real device limits ultimately require a cap,
+that is a future gameplay-rule decision requiring specification and
+player-facing communication.
 
 ## Architecture and data
 
@@ -210,11 +226,13 @@ rule decision requiring specification and player-facing communication.
 
 Implement game rules as a pure TypeScript engine. It accepts state, a direction,
 and an injected random source (or predetermined random samples) and returns a
-new state plus semantic events such as moves, merges, growth, spawn, and game
-over. It must not import React Native/Expo modules or directly perform storage,
-gestures, rendering, animation, clocks, or platform I/O. The UI interprets
-events; storage serializes validated engine state. This supports deterministic
-tests without implementing a generalized mode framework.
+new state plus semantic events and an immutable transition mapping each source
+tile to its resolved destination. This mapping is presentation data only and
+does not change rules or persisted state. The engine must not import React
+Native/Expo modules or directly perform storage, gestures, rendering, animation,
+clocks, or platform I/O. The UI interprets events and transition data; storage
+serializes validated engine state. This supports deterministic tests without
+implementing a generalized mode framework.
 
 Keep narrow boundaries—engine types and operations, a persistence adapter, and
 screen components—so a future explicitly designed mode could reuse appropriate
@@ -327,13 +345,13 @@ tests. They are not placeholder tests for this documentation-only phase.
 
 ## Risks, decisions, and open questions
 
-| Topic                  | Current position                                                                                         | Follow-up question or risk                                                                                       |
-| ---------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| High-`k` reachability  | Preserve 1–10 and disclose that 5–10 cannot expand under proposed defaults.                              | Is a post-MVP balance experiment desirable, and how will existing saves be handled?                              |
-| Large-board usability  | Use a minimum readable tile size, then pan/zoom plus accessible move/inspection controls; no hidden cap. | Device prototypes must determine thresholds, navigation gestures, performance, and screen-reader representation. |
-| Randomness             | Inject samples; use uniform empty-cell selection and 90/10 tile choice.                                  | Define sample consumption order precisely in engine tests so refactors remain reproducible.                      |
-| Large values and score | Store exponents and exact BigInt-derived decimal score strings; avoid bitwise Number arithmetic.         | Choose compact visual notation and screen-reader phrasing for extremely large exponents.                         |
-| Persistence failures   | Version and validate saves; fail safely to a recoverable new-game path.                                  | Decide whether invalid saves can be exported for diagnostics without collecting analytics.                       |
-| New-game confirmation  | Active `k` is immutable; confirm replacement of an unfinished run.                                       | Define “unfinished” across game-over and manually abandoned states during UI work.                               |
-| Board growth placement | Add rows below and columns right, retaining coordinates.                                                 | Ensure asymmetric visual growth feels understandable in animation and reduced-motion modes.                      |
-| Future modes           | Maintain clean engine/UI/storage boundaries only.                                                        | Add abstractions only after a second mode has concrete requirements.                                             |
+| Topic                  | Current position                                                                                                              | Follow-up question or risk                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| High-`k` reachability  | Preserve 1–10 and disclose that 5–10 cannot expand under proposed defaults.                                                   | Is a post-MVP balance experiment desirable, and how will existing saves be handled?                                  |
+| Large-board usability  | Continuously fit the complete board in overview, then offer zoom/pan plus accessible move/inspection controls; no hidden cap. | Device checks must validate overview legibility, navigation gestures, performance, and screen-reader representation. |
+| Randomness             | Inject samples; use uniform empty-cell selection and 90/10 tile choice.                                                       | Define sample consumption order precisely in engine tests so refactors remain reproducible.                          |
+| Large values and score | Store exponents and exact BigInt-derived decimal score strings; avoid bitwise Number arithmetic.                              | Choose compact visual notation and screen-reader phrasing for extremely large exponents.                             |
+| Persistence failures   | Version and validate saves; fail safely to a recoverable new-game path.                                                       | Decide whether invalid saves can be exported for diagnostics without collecting analytics.                           |
+| New-game confirmation  | Active `k` is immutable; confirm replacement of an unfinished run.                                                            | Define “unfinished” across game-over and manually abandoned states during UI work.                                   |
+| Board growth placement | Add rows below and columns right, retaining coordinates.                                                                      | Ensure asymmetric visual growth feels understandable in animation and reduced-motion modes.                          |
+| Future modes           | Maintain clean engine/UI/storage boundaries only.                                                                             | Add abstractions only after a second mode has concrete requirements.                                                 |
