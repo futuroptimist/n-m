@@ -5,7 +5,6 @@ import {
   Alert,
   AppState,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -19,6 +18,7 @@ import {
   move,
   type Direction,
   type GameState,
+  type MoveResult,
 } from '../engine';
 import { colors, spacing } from '../theme';
 import { gameStorage } from '../storage/asyncStorageAdapter';
@@ -32,6 +32,8 @@ export function GameScreen() {
     null,
   );
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [controlsOpen, setControlsOpen] = useState(false);
+  const [moveResult, setMoveResult] = useState<MoveResult | null>(null);
   const gameRef = useRef<GameState | null>(null);
 
   const persist = useCallback((state: GameState) => {
@@ -47,6 +49,7 @@ export function GameScreen() {
       gameRef.current = state;
       setGame(state);
       setBoardSession((session) => session + 1);
+      setMoveResult(null);
       if (shouldPersist) persist(state);
     },
     [persist],
@@ -84,19 +87,27 @@ export function GameScreen() {
   const performMove = useCallback(
     (direction: Direction) => {
       const current = gameRef.current;
-      if (current === null || current.status === 'game-over') return;
+      if (
+        current === null ||
+        current.status === 'game-over' ||
+        moveResult !== null
+      )
+        return;
       const result = move(current, direction, Math.random);
       if (!result.moved) return;
       gameRef.current = result.state;
       setGame(result.state);
+      setMoveResult(result);
       persist(result.state);
       const announcement = selectMoveAnnouncement(result.events);
       if (announcement !== null) {
         AccessibilityInfo.announceForAccessibility(announcement);
       }
     },
-    [persist],
+    [moveResult, persist],
   );
+
+  const finishAnimation = useCallback(() => setMoveResult(null), []);
 
   if (recoveryReason !== null) {
     const newer = recoveryReason === 'newer-version';
@@ -178,10 +189,7 @@ export function GameScreen() {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+    <View style={styles.screen}>
       <View style={styles.content}>
         <View style={styles.header}>
           <Text
@@ -210,37 +218,45 @@ export function GameScreen() {
             <Text style={styles.primaryButtonText}>New game</Text>
           </Pressable>
         </View>
-
         <View style={styles.statusPanel}>
           <Text style={styles.activeSetting}>Active k: {game.activeK}</Text>
-          <Text style={styles.milestone}>
+          <Text numberOfLines={1} adjustsFontSizeToFit style={styles.milestone}>
             Next growth: merge {growth.nextExpansionTile.toString()} →{' '}
             {growth.sideLength + 1}×{growth.sideLength + 1}
           </Text>
         </View>
-
         {storageError === null ? null : (
           <Text accessibilityLiveRegion="polite" style={styles.errorText}>
             {storageError}
           </Text>
         )}
-
-        <GameBoard game={game} key={boardSession} onMove={performMove} />
-
-        <View style={styles.movePanel}>
-          <Text accessibilityRole="header" style={styles.moveTitle}>
-            Move tiles
+        <GameBoard
+          controlsOpen={controlsOpen}
+          game={game}
+          key={boardSession}
+          moveResult={moveResult}
+          onAnimationComplete={finishAnimation}
+          onCloseControls={() => setControlsOpen(false)}
+          onMove={performMove}
+          onPendingKChange={setPendingK}
+          pendingK={pendingK}
+        />
+        <Pressable
+          accessibilityLabel="Open game controls"
+          accessibilityRole="button"
+          onPress={() => setControlsOpen(true)}
+          style={({ pressed }) => [
+            styles.controlsButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.primaryButtonText}>Controls</Text>
+        </Pressable>
+        {moveResult === null ? null : (
+          <Text accessibilityLiveRegion="polite" style={styles.moveStatus}>
+            Moving tiles…
           </Text>
-          <View style={styles.moveGrid}>
-            <View style={styles.moveSpacer} />
-            <MoveButton direction="up" onMove={performMove} symbol="↑" />
-            <View style={styles.moveSpacer} />
-            <MoveButton direction="left" onMove={performMove} symbol="←" />
-            <MoveButton direction="down" onMove={performMove} symbol="↓" />
-            <MoveButton direction="right" onMove={performMove} symbol="→" />
-          </View>
-        </View>
-
+        )}
         {game.status === 'game-over' ? (
           <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
             <Text accessibilityRole="header" style={styles.gameOverTitle}>
@@ -249,114 +265,10 @@ export function GameScreen() {
             <Text style={styles.gameOverScore}>
               Final score: {game.score.toString()}
             </Text>
-            <Pressable
-              accessibilityLabel="Start a new game after game over"
-              accessibilityRole="button"
-              onPress={requestNewGame}
-              style={({ pressed }) => [
-                styles.primaryButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={styles.primaryButtonText}>New game</Text>
-            </Pressable>
           </View>
         ) : null}
-
-        <View style={styles.settingsPanel}>
-          <Text accessibilityRole="header" style={styles.settingsTitle}>
-            Next game setting
-          </Text>
-          <Text style={styles.settingsDescription}>
-            {'Choose k for your next game. Your active game stays at k=' +
-              game.activeK +
-              '.'}
-          </Text>
-          <View style={styles.stepper}>
-            <SettingButton
-              disabled={pendingK === 1}
-              label="Decrease k for next game"
-              onPress={() => setPendingK((value) => Math.max(1, value - 1))}
-              symbol="−"
-            />
-            <View
-              accessible
-              accessibilityLabel={`Next game k ${pendingK}`}
-              style={styles.kValue}
-            >
-              <Text style={styles.kLabel}>k</Text>
-              <Text style={styles.kNumber}>{pendingK}</Text>
-            </View>
-            <SettingButton
-              disabled={pendingK === 10}
-              label="Increase k for next game"
-              onPress={() => setPendingK((value) => Math.min(10, value + 1))}
-              symbol="+"
-            />
-          </View>
-          {pendingK >= 5 ? (
-            <Text style={styles.help}>
-              Higher k grows less often. With current 2/4 tile spawns, k values
-              5–10 cannot grow beyond 2×2.
-            </Text>
-          ) : null}
-        </View>
       </View>
-    </ScrollView>
-  );
-}
-
-interface SettingButtonProps {
-  disabled: boolean;
-  label: string;
-  onPress: () => void;
-  symbol: string;
-}
-
-function MoveButton({
-  direction,
-  onMove,
-  symbol,
-}: {
-  direction: Direction;
-  onMove: (direction: Direction) => void;
-  symbol: string;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={`Move ${direction}`}
-      accessibilityRole="button"
-      onPress={() => onMove(direction)}
-      style={({ pressed }) => [styles.moveButton, pressed && styles.pressed]}
-    >
-      <Text style={styles.moveSymbol}>{symbol}</Text>
-    </Pressable>
-  );
-}
-
-function SettingButton({
-  disabled,
-  label,
-  onPress,
-  symbol,
-}: SettingButtonProps) {
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.stepperButton,
-        disabled && styles.disabledButton,
-        pressed && !disabled && styles.pressed,
-      ]}
-    >
-      <Text style={[styles.stepperSymbol, disabled && styles.disabledText]}>
-        {symbol}
-      </Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -377,32 +289,32 @@ const styles = StyleSheet.create({
     maxWidth: 440,
     textAlign: 'center',
   },
-  errorText: { color: '#8b1e1e', fontSize: 15, lineHeight: 21 },
+  errorText: { color: '#8b1e1e', fontSize: 13 },
   screen: {
     alignItems: 'center',
     backgroundColor: colors.background,
-    flexGrow: 1,
-    paddingBottom: 40,
+    flex: 1,
     paddingHorizontal: spacing.medium,
-    paddingTop: 56,
+    paddingTop: 48,
+    paddingBottom: 12,
   },
-  content: { gap: spacing.medium, maxWidth: 440, width: '100%' },
+  content: { flex: 1, gap: spacing.small, maxWidth: 440, width: '100%' },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
     justifyContent: 'space-between',
   },
-  title: { color: colors.ink, fontSize: 42, fontWeight: '900', lineHeight: 48 },
+  title: { color: colors.ink, fontSize: 34, fontWeight: '900', lineHeight: 40 },
   scoreLabel: {
     color: colors.mutedInk,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     textAlign: 'center',
   },
   score: {
     color: colors.ink,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
     textAlign: 'center',
   },
@@ -411,99 +323,38 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 10,
     justifyContent: 'center',
-    minHeight: 48,
-    paddingHorizontal: 16,
+    minHeight: 44,
+    paddingHorizontal: 14,
   },
   primaryButtonText: { color: colors.white, fontSize: 16, fontWeight: '700' },
   pressed: { backgroundColor: colors.primaryPressed, opacity: 0.9 },
   statusPanel: {
     backgroundColor: colors.panel,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  activeSetting: { color: colors.ink, fontSize: 16, fontWeight: '800' },
-  milestone: { color: colors.mutedInk, fontSize: 16, marginTop: 4 },
+  activeSetting: { color: colors.ink, fontSize: 14, fontWeight: '800' },
+  milestone: { color: colors.mutedInk, fontSize: 14, marginTop: 2 },
+  controlsButton: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 28,
+  },
+  moveStatus: { color: colors.mutedInk, fontSize: 12, textAlign: 'center' },
   gameOverPanel: {
     alignItems: 'center',
     backgroundColor: colors.panel,
-    borderColor: colors.tileDark,
-    borderRadius: 14,
-    borderWidth: 2,
-    gap: 10,
-    padding: spacing.medium,
-  },
-  gameOverTitle: { color: colors.ink, fontSize: 26, fontWeight: '900' },
-  gameOverScore: { color: colors.ink, fontSize: 18, fontWeight: '700' },
-  movePanel: {
-    alignItems: 'center',
-    backgroundColor: colors.panel,
-    borderRadius: 12,
-    gap: spacing.small,
-    padding: 12,
-  },
-  moveTitle: { color: colors.ink, fontSize: 17, fontWeight: '800' },
-  moveGrid: {
+    borderRadius: 10,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    width: 144,
-  },
-  moveButton: {
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    height: 44,
+    gap: 12,
     justifyContent: 'center',
-    width: 44,
+    padding: 8,
   },
-  moveSpacer: { height: 44, width: 44 },
-  moveSymbol: {
-    color: colors.white,
-    fontSize: 25,
-    fontWeight: '800',
-    lineHeight: 28,
-  },
-  settingsPanel: {
-    backgroundColor: colors.panel,
-    borderRadius: 14,
-    padding: spacing.medium,
-  },
-  settingsTitle: { color: colors.ink, fontSize: 20, fontWeight: '800' },
-  settingsDescription: {
-    color: colors.mutedInk,
-    fontSize: 15,
-    lineHeight: 21,
-    marginTop: 4,
-  },
-  stepper: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.medium,
-    justifyContent: 'center',
-    marginTop: 14,
-  },
-  stepperButton: {
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 24,
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
-  },
-  disabledButton: {
-    backgroundColor: '#d2cec7',
-    borderColor: '#aaa49b',
-    borderWidth: 1,
-  },
-  stepperSymbol: {
-    color: colors.white,
-    fontSize: 28,
-    fontWeight: '700',
-    lineHeight: 31,
-  },
-  disabledText: { color: '#706b64' },
-  kValue: { alignItems: 'center', minWidth: 68 },
-  kLabel: { color: colors.mutedInk, fontSize: 13, fontWeight: '700' },
-  kNumber: { color: colors.ink, fontSize: 28, fontWeight: '900' },
-  help: { color: colors.mutedInk, fontSize: 14, lineHeight: 20, marginTop: 14 },
+  gameOverTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' },
+  gameOverScore: { color: colors.ink, fontSize: 15, fontWeight: '700' },
 });

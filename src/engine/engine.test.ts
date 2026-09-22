@@ -371,3 +371,37 @@ test('moving and spawning do not mutate the input or its nested board rows', () 
   assert.notEqual(result.state.board, input.board);
   assert.notEqual(result.state.board[0], input.board[0]);
 });
+
+test('move returns unambiguous immutable slide and merge transitions', () => {
+  const result = move(
+    state([
+      [1, null, 1, 1],
+      [null, null, null, null],
+      [null, null, null, null],
+      [null, null, null, null],
+    ]),
+    'left',
+    sequence(0, 0),
+  );
+  assert.deepEqual(result.transitions, [
+    {
+      from: { row: 0, column: 0 },
+      to: { row: 0, column: 0 },
+      exponent: 1,
+      merges: true,
+    },
+    {
+      from: { row: 0, column: 2 },
+      to: { row: 0, column: 0 },
+      exponent: 1,
+      merges: true,
+    },
+    {
+      from: { row: 0, column: 3 },
+      to: { row: 0, column: 1 },
+      exponent: 1,
+      merges: false,
+    },
+  ]);
+  assert.deepEqual(result.state.board[0], [2, 1, 1, null]);
+});
