@@ -5,13 +5,13 @@ import {
   Alert,
   AppState,
   Pressable,
-  ScrollView,
+  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 
-import { GameBoard } from '../components/GameBoard';
+import { GameBoard, type BoardAnimation } from '../components/GameBoard';
 import { selectMoveAnnouncement } from '../components/boardInteraction';
 import {
   createGame,
@@ -32,7 +32,11 @@ export function GameScreen() {
     null,
   );
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const [animation, setAnimation] = useState<BoardAnimation | null>(null);
   const gameRef = useRef<GameState | null>(null);
+  const animationId = useRef(0);
+  const moving = useRef(false);
 
   const persist = useCallback((state: GameState) => {
     void gameStorage.save(state).then(
@@ -45,6 +49,8 @@ export function GameScreen() {
   const installGame = useCallback(
     (state: GameState, shouldPersist: boolean) => {
       gameRef.current = state;
+      moving.current = false;
+      setAnimation(null);
       setGame(state);
       setBoardSession((session) => session + 1);
       if (shouldPersist) persist(state);
@@ -84,9 +90,16 @@ export function GameScreen() {
   const performMove = useCallback(
     (direction: Direction) => {
       const current = gameRef.current;
-      if (current === null || current.status === 'game-over') return;
+      if (current === null || current.status === 'game-over' || moving.current)
+        return;
       const result = move(current, direction, Math.random);
       if (!result.moved) return;
+      moving.current = true;
+      animationId.current += 1;
+      setAnimation({
+        id: animationId.current,
+        transitions: result.transitions,
+      });
       gameRef.current = result.state;
       setGame(result.state);
       persist(result.state);
@@ -97,6 +110,14 @@ export function GameScreen() {
     },
     [persist],
   );
+
+  const finishAnimation = useCallback((id: number) => {
+    setAnimation((current) => {
+      if (current?.id !== id) return current;
+      moving.current = false;
+      return null;
+    });
+  }, []);
 
   if (recoveryReason !== null) {
     const newer = recoveryReason === 'newer-version';
@@ -178,10 +199,7 @@ export function GameScreen() {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+    <SafeAreaView style={styles.screen}>
       <View style={styles.content}>
         <View style={styles.header}>
           <Text
@@ -225,21 +243,80 @@ export function GameScreen() {
           </Text>
         )}
 
-        <GameBoard game={game} key={boardSession} onMove={performMove} />
-
-        <View style={styles.movePanel}>
-          <Text accessibilityRole="header" style={styles.moveTitle}>
-            Move tiles
-          </Text>
-          <View style={styles.moveGrid}>
-            <View style={styles.moveSpacer} />
-            <MoveButton direction="up" onMove={performMove} symbol="↑" />
-            <View style={styles.moveSpacer} />
-            <MoveButton direction="left" onMove={performMove} symbol="←" />
-            <MoveButton direction="down" onMove={performMove} symbol="↓" />
-            <MoveButton direction="right" onMove={performMove} symbol="→" />
+        <GameBoard
+          animation={animation}
+          controlsVisible={controlsVisible}
+          game={game}
+          key={boardSession}
+          onAnimationComplete={finishAnimation}
+          onCloseControls={() => setControlsVisible(false)}
+          onMove={performMove}
+        >
+          <View style={styles.movePanel}>
+            <Text accessibilityRole="header" style={styles.moveTitle}>
+              Move tiles
+            </Text>
+            <View style={styles.moveGrid}>
+              <View style={styles.moveSpacer} />
+              <MoveButton direction="up" onMove={performMove} symbol="↑" />
+              <View style={styles.moveSpacer} />
+              <MoveButton direction="left" onMove={performMove} symbol="←" />
+              <MoveButton direction="down" onMove={performMove} symbol="↓" />
+              <MoveButton direction="right" onMove={performMove} symbol="→" />
+            </View>
           </View>
-        </View>
+
+          <View style={styles.settingsPanel}>
+            <Text accessibilityRole="header" style={styles.settingsTitle}>
+              Next game setting
+            </Text>
+            <Text style={styles.settingsDescription}>
+              {'Choose k for your next game. Your active game stays at k=' +
+                game.activeK +
+                '.'}
+            </Text>
+            <View style={styles.stepper}>
+              <SettingButton
+                disabled={pendingK === 1}
+                label="Decrease k for next game"
+                onPress={() => setPendingK((value) => Math.max(1, value - 1))}
+                symbol="−"
+              />
+              <View
+                accessible
+                accessibilityLabel={`Next game k ${pendingK}`}
+                style={styles.kValue}
+              >
+                <Text style={styles.kLabel}>k</Text>
+                <Text style={styles.kNumber}>{pendingK}</Text>
+              </View>
+              <SettingButton
+                disabled={pendingK === 10}
+                label="Increase k for next game"
+                onPress={() => setPendingK((value) => Math.min(10, value + 1))}
+                symbol="+"
+              />
+            </View>
+            {pendingK >= 5 ? (
+              <Text style={styles.help}>
+                Higher k grows less often. With current 2/4 tile spawns, k
+                values 5–10 cannot grow beyond 2×2.
+              </Text>
+            ) : null}
+          </View>
+        </GameBoard>
+
+        <Pressable
+          accessibilityLabel="Open gameplay controls"
+          accessibilityRole="button"
+          onPress={() => setControlsVisible(true)}
+          style={({ pressed }) => [
+            styles.controlsButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.primaryButtonText}>Controls</Text>
+        </Pressable>
 
         {game.status === 'game-over' ? (
           <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
@@ -262,47 +339,8 @@ export function GameScreen() {
             </Pressable>
           </View>
         ) : null}
-
-        <View style={styles.settingsPanel}>
-          <Text accessibilityRole="header" style={styles.settingsTitle}>
-            Next game setting
-          </Text>
-          <Text style={styles.settingsDescription}>
-            {'Choose k for your next game. Your active game stays at k=' +
-              game.activeK +
-              '.'}
-          </Text>
-          <View style={styles.stepper}>
-            <SettingButton
-              disabled={pendingK === 1}
-              label="Decrease k for next game"
-              onPress={() => setPendingK((value) => Math.max(1, value - 1))}
-              symbol="−"
-            />
-            <View
-              accessible
-              accessibilityLabel={`Next game k ${pendingK}`}
-              style={styles.kValue}
-            >
-              <Text style={styles.kLabel}>k</Text>
-              <Text style={styles.kNumber}>{pendingK}</Text>
-            </View>
-            <SettingButton
-              disabled={pendingK === 10}
-              label="Increase k for next game"
-              onPress={() => setPendingK((value) => Math.min(10, value + 1))}
-              symbol="+"
-            />
-          </View>
-          {pendingK >= 5 ? (
-            <Text style={styles.help}>
-              Higher k grows less often. With current 2/4 tile spawns, k values
-              5–10 cannot grow beyond 2×2.
-            </Text>
-          ) : null}
-        </View>
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -381,12 +419,11 @@ const styles = StyleSheet.create({
   screen: {
     alignItems: 'center',
     backgroundColor: colors.background,
-    flexGrow: 1,
-    paddingBottom: 40,
+    flex: 1,
     paddingHorizontal: spacing.medium,
-    paddingTop: 56,
+    paddingTop: spacing.small,
   },
-  content: { gap: spacing.medium, maxWidth: 440, width: '100%' },
+  content: { flex: 1, gap: spacing.small, maxWidth: 440, width: '100%' },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -419,7 +456,7 @@ const styles = StyleSheet.create({
   statusPanel: {
     backgroundColor: colors.panel,
     borderRadius: 12,
-    padding: 14,
+    padding: 10,
   },
   activeSetting: { color: colors.ink, fontSize: 16, fontWeight: '800' },
   milestone: { color: colors.mutedInk, fontSize: 16, marginTop: 4 },
@@ -440,6 +477,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: spacing.small,
     padding: 12,
+  },
+  controlsButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    justifyContent: 'center',
+    minHeight: 44,
   },
   moveTitle: { color: colors.ink, fontSize: 17, fontWeight: '800' },
   moveGrid: {

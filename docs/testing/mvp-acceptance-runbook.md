@@ -14,11 +14,11 @@ device result from CI or claim success for an unperformed check. Completion
 requires testing the exact candidate SHA; if a newer commit is tested instead,
 record that SHA as a separate candidate and repeat affected checks.
 
-The current interaction threshold is provisional. A naturally played session
-must reach an oversized board for the large-board checks. If it cannot do so in
-the bounded session chosen by the operator, record those checks as **Not run**
-and block final MVP acceptance. Do not add or use an undocumented fixture and do
-not extrapolate from automated interaction tests.
+The current continuous-fit interaction is provisional. A naturally played
+session must reach the 128-triggered 8×8 board for the large-board checks. If it
+cannot do so in the bounded session chosen by the operator, record those checks
+as **Not run** and block final MVP acceptance. Do not add or use an undocumented
+fixture and do not extrapolate from automated interaction tests.
 
 ## 1. Safe static preflight
 
@@ -91,9 +91,11 @@ rather than writing one overall result.
    cardinal directions. A legal move slides tiles and creates exactly one new
    tile; a no-op does neither. Merge two equal values, confirm they merge only
    once per move, and confirm the score rises by the resulting tile value.
-3. **Directional controls:** invoke Move up/down/left/right and confirm each
-   follows the same rules as its swipe. Check that each target is comfortably
-   operable and at least 44 logical points.
+3. **Controls disclosure and directional controls:** confirm the normal play
+   screen does not scroll and its visible Controls action opens the secondary
+   panel. Invoke Move up/down/left/right there and confirm each follows the same
+   rules as its swipe. Check that each target is comfortably operable and at
+   least 44 logical points.
 4. **`k` range and replacement:** decrement at 1 and increment through every
    displayed value to 10. Confirm the bounds are disabled, the active run's `k`
    does not change, and the warning appears for 5–10. With an unfinished run,
@@ -102,11 +104,18 @@ rather than writing one overall result.
 5. **Growth:** in natural play at `k=1`, merge the first 4, 8, and 16. Confirm
    board sizes 3×3, 4×4, and 5×5 respectively; existing positions remain while
    space is added below/right, next-growth text advances, and play continues.
-6. **Persistence:** note `k`, board cells, score, next milestone, and status;
+   Continue through the first 128 and confirm the resulting 8×8 board returns to
+   overview fit with all rows, columns, cells, and edges visible.
+6. **Motion:** observe ordinary moves in all four directions. Existing tiles
+   must slide from their source cells; equal tiles must converge before the
+   merged result resolves; the spawn must not appear before movement resolves.
+   Enter several inputs quickly and confirm no duplicate/stale tile or
+   conflicting move appears.
+7. **Persistence:** note `k`, board cells, score, next milestone, and status;
    background the app, then terminate and relaunch it through the normal OS app
    switcher/launcher flow. Confirm the same state resumes atomically. Make
    another move and repeat. This is a real relaunch, not hot reload.
-7. **Game over:** naturally fill a run until no slide or merge remains. Confirm
+8. **Game over:** naturally fill a run until no slide or merge remains. Confirm
    `Game over`, the final score, an understandable final board, and no further
    move response. Confirm New game starts immediately without an unfinished-run
    warning. A full but mergeable board must remain playable if encountered.
@@ -192,9 +201,10 @@ Perform the shared live functional matrix, then:
   announcements for spawns, no-op swipes, viewport changes, or redraws. When
   game over coincides with other events, it takes priority.
 - Increase iOS Larger Text/Dynamic Type through a large accessibility size,
-  relaunch, and confirm labels remain readable, controls reachable, the screen
-  scrolls where necessary, and board values remain identifiable. Restore the
-  original setting and record both sizes.
+  relaunch, and confirm labels remain readable, controls reachable, the normal
+  gameplay surface still does not scroll, the Controls panel scrolls internally
+  where necessary, and board values remain identifiable. Restore the original
+  setting and record both sizes.
 - Enable Reduce Motion, then perform a slide, merge, and board growth. Confirm
   each resulting board state remains understandable and movement, merge, and
   growth transitions update immediately or use restrained fades. Restore the
@@ -205,22 +215,25 @@ VoiceOver off. Then turn VoiceOver on for accessible-control and inspector
 focus/speech/announcement tests; do not treat screen-reader gestures as ordinary
 gameplay gesture evidence. Record the screen-reader state for each result.
 
-### Oversized-board gate
+### Continuous-fit large-board gate
 
-In a naturally played `k=1` session, continue until the fitted tile calculation
-crosses the 44-point threshold and viewport text/controls appear. Then confirm:
+In a naturally played `k=1` session, continue through the first merged 128 and
+the resulting 8×8 board, then continue farther if the bounded session permits.
+Confirm:
 
-1. the board remains fitted before the threshold and switches to a clipped
-   viewport only after it;
-2. one-finger cardinal swipes still move tiles, while two-finger pan and pinch
-   navigate only the oversized viewport and never create a move;
-3. Zoom +, Zoom −, and Fit / reset work, expose correct disabled bounds, and do
-   not alter game state;
-4. top/right/bottom/left visible-edge text updates without relying on color;
-5. panning, pinching, and each zoom level never expose blank area beyond the
-   board; and
-6. the inspector reaches and accurately reports offscreen corner/interior cells
-   without moving the viewport or tiles.
+1. overview mode shows the entire 8×8 board with no clipped edge or blank cell,
+   and every later growth dimension can return to the same full-board fit;
+2. portrait gameplay at default text size does not vertically scroll, and
+   one-finger up/down/left/right board swipes still move tiles;
+3. in Controls, Zoom + enlarges into the navigable view, Zoom − reaches the
+   dynamic overview bound, and Fit board resets to the complete board without
+   altering game state;
+4. two-finger pan and pinch navigate only the enlarged board and never create a
+   move or expose blank area beyond the board;
+5. mode and top/right/bottom/left visible-edge text update without relying on
+   color; and
+6. the inspector reaches and accurately reports corner/interior cells without
+   moving the viewport or tiles.
 
 Time-boxing is allowed, but omission is not a pass. If natural play does not
 reach this state within the recorded bound, mark every unobserved large-board
@@ -440,10 +453,12 @@ Use one result per environment where the row applies.
 | Save / resume                    | Exact run returns after background and true relaunch                                                      | Before/after captures and relaunch steps                                          |
 | Recovery behavior                | Automated tests cover valid, corrupt, newer, read/write/clear failure behavior without silent destruction | Named test command/output; live result separately Not run unless safely exercised |
 | Small-board swipe                | Fitted board accepts deliberate one-finger swipes in four directions                                      | Short video or action/result notes                                                |
-| Large-board viewport             | Threshold, gesture separation, zoom/reset, edges, clamping, and offscreen inspection all work             | Video/screenshots for each item, or Not run blocker                               |
+| Continuous-fit large board       | Natural 128/8×8 fits fully; later growth, gesture separation, zoom/fit, clamping, and inspection work     | Video/screenshots for each item, or Not run blocker                               |
+| Compact gameplay                 | Header, status, full board, and Controls fit without page scrolling; vertical board swipes move tiles     | Portrait video showing bounds and up/down moves                                   |
+| Tile motion                      | Four-direction slides, merge convergence, spawn timing, and rapid-input serialization are coherent        | Slow video plus action/result notes                                               |
 | Inspector / directional controls | 44-point accessible controls; exact one-based cell text; all rows/columns and moves reachable             | Assistive-tech notes and representative captures                                  |
 | Announcements                    | Only inspector actions, merges, growth, and game over announce; game over has priority                    | VoiceOver/TalkBack recording or transcript                                        |
-| Dynamic Type / font size         | Large text is readable, operable, and scrollable without loss of meaning                                  | Default/large screenshots and configured size                                     |
+| Dynamic Type / font size         | Large text is readable; gameplay stays fixed and the secondary Controls panel scrolls as needed           | Default/large screenshots and configured size                                     |
 | Reduced motion                   | With the platform preference enabled, slide, merge, and growth states remain clear without full motion    | Preference name/value and video or action/result notes                            |
 | VoiceOver / TalkBack             | Logical focus; names, roles, states, bounds; no focus trap; non-color meaning                             | Version/settings and narrated transcript/video                                    |
 | iOS Simulator                    | All applicable simulator cases run on the recorded runtime                                                | Device/runtime/Xcode versions and matrix results                                  |

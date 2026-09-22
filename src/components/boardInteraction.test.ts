@@ -3,9 +3,10 @@ import test from 'node:test';
 
 import {
   BOARD_PADDING,
-  MIN_TILE_SIZE,
+  TOUCH_TILE_SIZE,
   TILE_GUTTER,
   boardContentSize,
+  boardScaleBounds,
   cellDescription,
   clampViewport,
   edgeDescription,
@@ -13,6 +14,7 @@ import {
   minimumBoardSize,
   needsViewport,
   normalizeViewport,
+  scaleMode,
   selectMoveAnnouncement,
   shouldCaptureBoardGesture,
   visibleEdges,
@@ -25,16 +27,25 @@ test('captures gameplay swipes on every board and viewport gestures only when ov
   assert.equal(shouldCaptureBoardGesture(true, 2, 0, 0), true);
 });
 
-test('switches below the 44-point rendered-tile threshold including gutters', () => {
-  assert.equal(MIN_TILE_SIZE, 44);
+test('derives continuous full-board fit below the touch-friendly scale', () => {
+  assert.equal(TOUCH_TILE_SIZE, 44);
   assert.equal(TILE_GUTTER, 6);
   assert.equal(BOARD_PADDING, 3);
   assert.equal(minimumBoardSize(10), 506);
   assert.equal(boardContentSize(10, 88), 946);
-  assert.equal(needsViewport(10, 506), false);
-  assert.equal(needsViewport(10, 505), true);
+  assert.equal(needsViewport(506, 506), false);
+  assert.equal(needsViewport(506, 505), true);
   assert.equal(fittedTileSize(10, 506), 44);
-  assert.equal(needsViewport(4, 0), false);
+  assert.equal(needsViewport(200, 0), false);
+  assert.equal(boardScaleBounds(8, 344).fit, 36.25 / 44);
+  assert.equal(boardScaleBounds(8, 344).touchFriendly, 1);
+  assert.equal(boardScaleBounds(8, 344).maximum, 2.5);
+  assert.equal(
+    boardContentSize(8, TOUCH_TILE_SIZE * boardScaleBounds(8, 344).fit),
+    344,
+  );
+  assert.equal(scaleMode(0.75), 'overview');
+  assert.equal(scaleMode(1), 'touch-friendly');
 });
 
 test('clamps viewport positions without exposing blank space', () => {
@@ -48,12 +59,12 @@ test('clamps viewport positions without exposing blank space', () => {
   });
 });
 
-test('normalizes fitted viewports and clamps oversized viewports', () => {
-  assert.deepEqual(normalizeViewport(false, 2, { x: -40, y: -20 }, 10, 300), {
-    zoom: 1,
+test('normalizes zoom to dynamic fit and clamps enlarged viewports', () => {
+  assert.deepEqual(normalizeViewport(0, { x: -40, y: -20 }, 10, 286), {
+    zoom: 0.5,
     position: { x: 0, y: 0 },
   });
-  assert.deepEqual(normalizeViewport(true, 3, { x: -900, y: 10 }, 10, 300), {
+  assert.deepEqual(normalizeViewport(3, { x: -900, y: 10 }, 10, 300), {
     zoom: 2.5,
     position: { x: -866, y: 0 },
   });
