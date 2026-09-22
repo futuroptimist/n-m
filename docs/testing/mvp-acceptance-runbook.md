@@ -14,11 +14,11 @@ device result from CI or claim success for an unperformed check. Completion
 requires testing the exact candidate SHA; if a newer commit is tested instead,
 record that SHA as a separate candidate and repeat affected checks.
 
-The current interaction threshold is provisional. A naturally played session
-must reach an oversized board for the large-board checks. If it cannot do so in
-the bounded session chosen by the operator, record those checks as **Not run**
-and block final MVP acceptance. Do not add or use an undocumented fixture and do
-not extrapolate from automated interaction tests.
+A naturally played session must reach the 128-triggered 8×8 board for the
+large-board checks. If it cannot do so in the bounded session chosen by the
+operator, record those checks as **Not run** and block final MVP acceptance. Do
+not add or use an undocumented fixture and do not extrapolate from automated
+interaction tests.
 
 ## 1. Safe static preflight
 
@@ -205,27 +205,47 @@ VoiceOver off. Then turn VoiceOver on for accessible-control and inspector
 focus/speech/announcement tests; do not treat screen-reader gestures as ordinary
 gameplay gesture evidence. Record the screen-reader state for each result.
 
-### Oversized-board gate
+### Continuous-fit and motion gate
 
-In a naturally played `k=1` session, continue until the fitted tile calculation
-crosses the 44-point threshold and viewport text/controls appear. Then confirm:
+In a naturally played `k=1` session, continue through the 128 merge and
+resulting 8×8 board, then continue to any later growth reached within the
+recorded time bound. Confirm the following matrix:
 
-1. the board remains fitted before the threshold and switches to a clipped
-   viewport only after it;
-2. one-finger cardinal swipes still move tiles, while two-finger pan and pinch
-   navigate only the oversized viewport and never create a move;
-3. Zoom +, Zoom −, and Fit / reset work, expose correct disabled bounds, and do
-   not alter game state;
-4. top/right/bottom/left visible-edge text updates without relying on color;
-5. panning, pinching, and each zoom level never expose blank area beyond the
-   board; and
-6. the inspector reaches and accurately reports offscreen corner/interior cells
-   without moving the viewport or tiles.
+1. **8×8 fit:** immediately after growth, all eight rows and columns, every
+   edge, and every occupied or empty cell appear inside the square frame with no
+   clipping or blank out-of-board area. Record the portrait viewport dimensions.
+2. **Later growth:** every later size reached also returns automatically to a
+   complete full-board overview. **Zoom −** can always return to that dynamic
+   fit scale, and **Fit board** returns there directly.
+3. **Scale and navigation:** the visible label distinguishes touch-friendly,
+   overview, and zoomed presentation. Exercise Zoom +, Zoom −, Fit board,
+   two-finger pan, and pinch. At enlarged scales, reach each edge without
+   exposing blank space; at fit, confirm all four edges simultaneously.
+4. **Non-scrolling play:** at default text size on a portrait iPhone 17-sized
+   simulator, confirm the header, score, New game, status, complete board, and
+   Controls action are visible together. Perform one-finger up and down moves
+   beginning on the board and confirm tiles move while the page does not scroll;
+   repeat left and right.
+5. **Controls and alternatives:** open Controls and verify its internal content
+   may scroll while the gameplay surface does not. Exercise `k` bounds,
+   zoom/fit, all four 44-point directional buttons, and the inspector through
+   first/last rows and columns. With VoiceOver, confirm labels, values, disabled
+   states, and logical focus order.
+6. **Motion:** observe an ordinary slide in all four directions, a merge, and a
+   spawn. Existing tiles must travel from their source cells, merge sources must
+   converge before the result resolves, and the spawn must enter coherently.
+   Rapid repeated input, growth during a merge, opening Controls, starting a new
+   game, background/relaunch, and resume must not leave duplicate or stale
+   tiles.
+7. **Reduce Motion:** enable the OS preference and repeat a slide, merge, spawn,
+   and growth. Confirm the resolved state updates immediately without spatial
+   motion, remains understandable, and can still be operated by directional
+   buttons and inspected cell by cell. Restore the original preference.
 
 Time-boxing is allowed, but omission is not a pass. If natural play does not
-reach this state within the recorded bound, mark every unobserved large-board
-item **Not run**, identify the missing deterministic live-test fixture as an
-acceptance blocker, and block final MVP acceptance.
+reach 8×8 within the recorded bound, mark every unobserved fit item **Not run**,
+identify the missing deterministic live-test fixture as an acceptance blocker,
+and block final MVP acceptance.
 
 ## 4. iPhone 13 Pro
 

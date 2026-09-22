@@ -3,6 +3,7 @@ import {
   type Cell,
   type Direction,
   type EngineEvent,
+  type TileTransition,
 } from '../engine';
 
 export const MIN_TILE_SIZE = 44;
@@ -24,6 +25,23 @@ export interface VisibleEdges {
   readonly right: boolean;
   readonly bottom: boolean;
   readonly left: boolean;
+}
+
+export interface BoardScale {
+  readonly fitTileSize: number;
+  readonly overview: boolean;
+  readonly minimumZoom: number;
+  readonly maximumZoom: number;
+}
+
+export interface TileMotion {
+  readonly key: string;
+  readonly exponent: number;
+  readonly fromX: number;
+  readonly fromY: number;
+  readonly toX: number;
+  readonly toY: number;
+  readonly merges: boolean;
 }
 
 export function swipeDirection(dx: number, dy: number): Direction | null {
@@ -56,15 +74,21 @@ export function shouldCaptureBoardGesture(
   );
 }
 
-export function needsViewport(
-  sideLength: number,
-  availableSize: number,
-): boolean {
-  return availableSize > 0 && minimumBoardSize(sideLength) > availableSize;
-}
-
 export function minimumBoardSize(sideLength: number): number {
   return boardContentSize(sideLength, MIN_TILE_SIZE);
+}
+
+export function boardScale(
+  sideLength: number,
+  availableSize: number,
+): BoardScale {
+  const fitTileSize = Math.max(1, fittedTileSize(sideLength, availableSize));
+  return {
+    fitTileSize,
+    overview: fitTileSize < MIN_TILE_SIZE,
+    minimumZoom: MIN_ZOOM,
+    maximumZoom: Math.max(MAX_ZOOM, MIN_TILE_SIZE / fitTileSize),
+  };
 }
 
 export function boardContentSize(
@@ -94,24 +118,39 @@ export function clampViewport(
 }
 
 export function normalizeViewport(
-  oversized: boolean,
   zoom: number,
   position: ViewportPosition,
   sideLength: number,
   viewportSize: number,
 ): { zoom: number; position: ViewportPosition } {
-  if (!oversized) {
-    return { zoom: MIN_ZOOM, position: { x: 0, y: 0 } };
-  }
-  const boundedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+  const scale = boardScale(sideLength, viewportSize);
+  const boundedZoom = Math.max(
+    scale.minimumZoom,
+    Math.min(scale.maximumZoom, zoom),
+  );
   return {
     zoom: boundedZoom,
     position: clampViewport(
       position,
-      boardContentSize(sideLength, MIN_TILE_SIZE * boundedZoom),
+      boardContentSize(sideLength, scale.fitTileSize * boundedZoom),
       viewportSize,
     ),
   };
+}
+
+export function planTileMotion(
+  transition: readonly TileTransition[],
+  cellPitch: number,
+): TileMotion[] {
+  return transition.map((tile, index) => ({
+    key: `${tile.from.row}-${tile.from.column}-${index}`,
+    exponent: tile.exponent,
+    fromX: tile.from.column * cellPitch,
+    fromY: tile.from.row * cellPitch,
+    toX: tile.to.column * cellPitch,
+    toY: tile.to.row * cellPitch,
+    merges: tile.merges,
+  }));
 }
 
 export function visibleEdges(

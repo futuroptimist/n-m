@@ -121,6 +121,62 @@ test('moves in every direction and merges each tile at most once', () => {
   );
 });
 
+test('reports immutable source-to-destination transitions without guessing duplicate tiles', () => {
+  const input = state([
+    [1, 1, 1, null],
+    [null, null, null, null],
+    [null, null, null, null],
+    [null, null, null, null],
+  ]);
+  const result = move(input, 'left', sequence(0, 0));
+
+  assert.deepEqual(result.transition, [
+    {
+      from: { row: 0, column: 0 },
+      to: { row: 0, column: 0 },
+      exponent: 1,
+      merges: true,
+    },
+    {
+      from: { row: 0, column: 1 },
+      to: { row: 0, column: 0 },
+      exponent: 1,
+      merges: true,
+    },
+    {
+      from: { row: 0, column: 2 },
+      to: { row: 0, column: 1 },
+      exponent: 1,
+      merges: false,
+    },
+  ]);
+  assert.deepEqual(input.board[0], [1, 1, 1, null]);
+});
+
+test('transition coordinates follow all four movement directions', () => {
+  const input = state([
+    [null, null, null, null],
+    [null, 1, null, null],
+    [null, null, null, null],
+    [null, null, null, null],
+  ]);
+  const destinations = {
+    up: { row: 0, column: 1 },
+    down: { row: 3, column: 1 },
+    left: { row: 1, column: 0 },
+    right: { row: 1, column: 3 },
+  } as const;
+  for (const direction of ['up', 'down', 'left', 'right'] as const) {
+    const result = move(input, direction, sequence(0, 0));
+    assert.deepEqual(result.transition[0], {
+      from: { row: 1, column: 1 },
+      to: destinations[direction],
+      exponent: 1,
+      merges: false,
+    });
+  }
+});
+
 test('multiple merges accumulate exact score and do not chain merge', () => {
   const result = move(
     state([

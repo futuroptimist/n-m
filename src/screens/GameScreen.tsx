@@ -5,7 +5,6 @@ import {
   Alert,
   AppState,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -18,7 +17,9 @@ import {
   deriveGrowth,
   move,
   type Direction,
+  type EngineEvent,
   type GameState,
+  type TileTransition,
 } from '../engine';
 import { colors, spacing } from '../theme';
 import { gameStorage } from '../storage/asyncStorageAdapter';
@@ -32,7 +33,14 @@ export function GameScreen() {
     null,
   );
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [animation, setAnimation] = useState<{
+    transition: readonly TileTransition[];
+    events: readonly EngineEvent[];
+  }>({ transition: [], events: [] });
   const gameRef = useRef<GameState | null>(null);
+  const animatingRef = useRef(false);
 
   const persist = useCallback((state: GameState) => {
     void gameStorage.save(state).then(
@@ -45,6 +53,8 @@ export function GameScreen() {
   const installGame = useCallback(
     (state: GameState, shouldPersist: boolean) => {
       gameRef.current = state;
+      animatingRef.current = false;
+      setAnimation({ transition: [], events: [] });
       setGame(state);
       setBoardSession((session) => session + 1);
       if (shouldPersist) persist(state);
@@ -81,21 +91,40 @@ export function GameScreen() {
     return () => subscription.remove();
   }, [persist]);
 
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReducedMotion);
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      setReducedMotion,
+    );
+    return () => subscription.remove();
+  }, []);
+
+  const finishAnimation = useCallback(() => {
+    animatingRef.current = false;
+  }, []);
+
   const performMove = useCallback(
     (direction: Direction) => {
       const current = gameRef.current;
       if (current === null || current.status === 'game-over') return;
+      if (animatingRef.current) {
+        AccessibilityInfo.announceForAccessibility('Move in progress');
+        return;
+      }
       const result = move(current, direction, Math.random);
       if (!result.moved) return;
+      animatingRef.current = !reducedMotion;
       gameRef.current = result.state;
       setGame(result.state);
+      setAnimation({ transition: result.transition, events: result.events });
       persist(result.state);
       const announcement = selectMoveAnnouncement(result.events);
       if (announcement !== null) {
         AccessibilityInfo.announceForAccessibility(announcement);
       }
     },
-    [persist],
+    [persist, reducedMotion],
   );
 
   if (recoveryReason !== null) {
@@ -178,10 +207,7 @@ export function GameScreen() {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+    <View style={styles.screen}>
       <View style={styles.content}>
         <View style={styles.header}>
           <Text
@@ -225,21 +251,24 @@ export function GameScreen() {
           </Text>
         )}
 
-        <GameBoard game={game} key={boardSession} onMove={performMove} />
-
-        <View style={styles.movePanel}>
-          <Text accessibilityRole="header" style={styles.moveTitle}>
-            Move tiles
-          </Text>
-          <View style={styles.moveGrid}>
-            <View style={styles.moveSpacer} />
-            <MoveButton direction="up" onMove={performMove} symbol="↑" />
-            <View style={styles.moveSpacer} />
-            <MoveButton direction="left" onMove={performMove} symbol="←" />
-            <MoveButton direction="down" onMove={performMove} symbol="↓" />
-            <MoveButton direction="right" onMove={performMove} symbol="→" />
-          </View>
-        </View>
+        <GameBoard
+          controls={
+            <SettingsPanel
+              activeK={game.activeK}
+              pendingK={pendingK}
+              setPendingK={setPendingK}
+            />
+          }
+          controlsVisible={controlsVisible}
+          events={animation.events}
+          game={game}
+          key={boardSession}
+          onAnimationComplete={finishAnimation}
+          onCloseControls={() => setControlsVisible(false)}
+          onMove={performMove}
+          reducedMotion={reducedMotion}
+          transition={animation.transition}
+        />
 
         {game.status === 'game-over' ? (
           <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
@@ -263,46 +292,69 @@ export function GameScreen() {
           </View>
         ) : null}
 
-        <View style={styles.settingsPanel}>
-          <Text accessibilityRole="header" style={styles.settingsTitle}>
-            Next game setting
-          </Text>
-          <Text style={styles.settingsDescription}>
-            {'Choose k for your next game. Your active game stays at k=' +
-              game.activeK +
-              '.'}
-          </Text>
-          <View style={styles.stepper}>
-            <SettingButton
-              disabled={pendingK === 1}
-              label="Decrease k for next game"
-              onPress={() => setPendingK((value) => Math.max(1, value - 1))}
-              symbol="−"
-            />
-            <View
-              accessible
-              accessibilityLabel={`Next game k ${pendingK}`}
-              style={styles.kValue}
-            >
-              <Text style={styles.kLabel}>k</Text>
-              <Text style={styles.kNumber}>{pendingK}</Text>
-            </View>
-            <SettingButton
-              disabled={pendingK === 10}
-              label="Increase k for next game"
-              onPress={() => setPendingK((value) => Math.min(10, value + 1))}
-              symbol="+"
-            />
-          </View>
-          {pendingK >= 5 ? (
-            <Text style={styles.help}>
-              Higher k grows less often. With current 2/4 tile spawns, k values
-              5–10 cannot grow beyond 2×2.
-            </Text>
-          ) : null}
-        </View>
+        <Pressable
+          accessibilityHint="Opens zoom, fit, inspection, movement, and next-game settings"
+          accessibilityLabel="Open game controls"
+          accessibilityRole="button"
+          onPress={() => setControlsVisible(true)}
+          style={({ pressed }) => [
+            styles.controlsButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.primaryButtonText}>Controls</Text>
+        </Pressable>
       </View>
-    </ScrollView>
+    </View>
+  );
+}
+
+function SettingsPanel({
+  activeK,
+  pendingK,
+  setPendingK,
+}: {
+  activeK: number;
+  pendingK: number;
+  setPendingK: (update: (value: number) => number) => void;
+}) {
+  return (
+    <View style={styles.settingsPanel}>
+      <Text accessibilityRole="header" style={styles.settingsTitle}>
+        Next game setting
+      </Text>
+      <Text style={styles.settingsDescription}>
+        Choose k for your next game. Your active game stays at k={activeK}.
+      </Text>
+      <View style={styles.stepper}>
+        <SettingButton
+          disabled={pendingK === 1}
+          label="Decrease k for next game"
+          onPress={() => setPendingK((value) => Math.max(1, value - 1))}
+          symbol="−"
+        />
+        <View
+          accessible
+          accessibilityLabel={`Next game k ${pendingK}`}
+          style={styles.kValue}
+        >
+          <Text style={styles.kLabel}>k</Text>
+          <Text style={styles.kNumber}>{pendingK}</Text>
+        </View>
+        <SettingButton
+          disabled={pendingK === 10}
+          label="Increase k for next game"
+          onPress={() => setPendingK((value) => Math.min(10, value + 1))}
+          symbol="+"
+        />
+      </View>
+      {pendingK >= 5 ? (
+        <Text style={styles.help}>
+          Higher k grows less often. With current 2/4 tile spawns, k values 5–10
+          cannot grow beyond 2×2.
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -311,27 +363,6 @@ interface SettingButtonProps {
   label: string;
   onPress: () => void;
   symbol: string;
-}
-
-function MoveButton({
-  direction,
-  onMove,
-  symbol,
-}: {
-  direction: Direction;
-  onMove: (direction: Direction) => void;
-  symbol: string;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={`Move ${direction}`}
-      accessibilityRole="button"
-      onPress={() => onMove(direction)}
-      style={({ pressed }) => [styles.moveButton, pressed && styles.pressed]}
-    >
-      <Text style={styles.moveSymbol}>{symbol}</Text>
-    </Pressable>
-  );
 }
 
 function SettingButton({
@@ -381,19 +412,19 @@ const styles = StyleSheet.create({
   screen: {
     alignItems: 'center',
     backgroundColor: colors.background,
-    flexGrow: 1,
-    paddingBottom: 40,
+    flex: 1,
+    paddingBottom: spacing.small,
     paddingHorizontal: spacing.medium,
-    paddingTop: 56,
+    paddingTop: 48,
   },
-  content: { gap: spacing.medium, maxWidth: 440, width: '100%' },
+  content: { flex: 1, gap: spacing.small, maxWidth: 440, width: '100%' },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 12,
     justifyContent: 'space-between',
   },
-  title: { color: colors.ink, fontSize: 42, fontWeight: '900', lineHeight: 48 },
+  title: { color: colors.ink, fontSize: 34, fontWeight: '900', lineHeight: 40 },
   scoreLabel: {
     color: colors.mutedInk,
     fontSize: 11,
@@ -411,7 +442,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 10,
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 44,
     paddingHorizontal: 16,
   },
   primaryButtonText: { color: colors.white, fontSize: 16, fontWeight: '700' },
@@ -419,7 +450,7 @@ const styles = StyleSheet.create({
   statusPanel: {
     backgroundColor: colors.panel,
     borderRadius: 12,
-    padding: 14,
+    padding: 10,
   },
   activeSetting: { color: colors.ink, fontSize: 16, fontWeight: '800' },
   milestone: { color: colors.mutedInk, fontSize: 16, marginTop: 4 },
@@ -434,34 +465,13 @@ const styles = StyleSheet.create({
   },
   gameOverTitle: { color: colors.ink, fontSize: 26, fontWeight: '900' },
   gameOverScore: { color: colors.ink, fontSize: 18, fontWeight: '700' },
-  movePanel: {
+  controlsButton: {
     alignItems: 'center',
-    backgroundColor: colors.panel,
-    borderRadius: 12,
-    gap: spacing.small,
-    padding: 12,
-  },
-  moveTitle: { color: colors.ink, fontSize: 17, fontWeight: '800' },
-  moveGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    width: 144,
-  },
-  moveButton: {
-    alignItems: 'center',
+    alignSelf: 'stretch',
     backgroundColor: colors.primary,
-    borderRadius: 8,
-    height: 44,
+    borderRadius: 10,
     justifyContent: 'center',
-    width: 44,
-  },
-  moveSpacer: { height: 44, width: 44 },
-  moveSymbol: {
-    color: colors.white,
-    fontSize: 25,
-    fontWeight: '800',
-    lineHeight: 28,
+    minHeight: 44,
   },
   settingsPanel: {
     backgroundColor: colors.panel,
