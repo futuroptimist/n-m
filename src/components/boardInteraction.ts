@@ -3,13 +3,20 @@ import {
   type Cell,
   type Direction,
   type EngineEvent,
+  type TileTransition,
 } from '../engine';
 
-export const MIN_TILE_SIZE = 44;
+export const TOUCH_TILE_SIZE = 44;
 export const TILE_GUTTER = 6;
 export const BOARD_PADDING = 3;
-export const MIN_ZOOM = 1;
+export const FIT_ZOOM = 1;
 export const MAX_ZOOM = 2.5;
+
+export interface BoardGeometry {
+  readonly tileSize: number;
+  readonly gutter: number;
+  readonly padding: number;
+}
 
 const MIN_SWIPE_DISTANCE = 32;
 const CARDINAL_DOMINANCE = 1.5;
@@ -56,29 +63,54 @@ export function shouldCaptureBoardGesture(
   );
 }
 
-export function needsViewport(
-  sideLength: number,
-  availableSize: number,
-): boolean {
-  return availableSize > 0 && minimumBoardSize(sideLength) > availableSize;
-}
-
 export function minimumBoardSize(sideLength: number): number {
-  return boardContentSize(sideLength, MIN_TILE_SIZE);
+  return boardContentSize(sideLength, TOUCH_TILE_SIZE);
 }
 
 export function boardContentSize(
   sideLength: number,
   renderedTileSize: number,
+  gutter = TILE_GUTTER,
+  padding = BOARD_PADDING,
 ): number {
-  return sideLength * (renderedTileSize + TILE_GUTTER) + BOARD_PADDING * 2;
+  return sideLength * (renderedTileSize + gutter) + padding * 2;
+}
+
+export function fittedBoardGeometry(
+  sideLength: number,
+  availableSize: number,
+): BoardGeometry {
+  const tileSize =
+    (availableSize - BOARD_PADDING * 2) / sideLength - TILE_GUTTER;
+  if (tileSize > 0) {
+    return { tileSize, gutter: TILE_GUTTER, padding: BOARD_PADDING };
+  }
+  const scale =
+    availableSize > 0 ? availableSize / boardContentSize(sideLength, 1) : 0;
+  return {
+    tileSize: scale,
+    gutter: TILE_GUTTER * scale,
+    padding: BOARD_PADDING * scale,
+  };
 }
 
 export function fittedTileSize(
   sideLength: number,
   availableSize: number,
 ): number {
-  return (availableSize - BOARD_PADDING * 2) / sideLength - TILE_GUTTER;
+  return fittedBoardGeometry(sideLength, availableSize).tileSize;
+}
+
+export function touchFriendlyZoom(
+  sideLength: number,
+  availableSize: number,
+): number {
+  const fitted = fittedTileSize(sideLength, availableSize);
+  return fitted <= 0 ? FIT_ZOOM : Math.max(FIT_ZOOM, TOUCH_TILE_SIZE / fitted);
+}
+
+export function maximumZoom(sideLength: number, availableSize: number): number {
+  return Math.max(MAX_ZOOM, touchFriendlyZoom(sideLength, availableSize));
 }
 
 export function clampViewport(
@@ -94,24 +126,57 @@ export function clampViewport(
 }
 
 export function normalizeViewport(
-  oversized: boolean,
   zoom: number,
   position: ViewportPosition,
   sideLength: number,
   viewportSize: number,
 ): { zoom: number; position: ViewportPosition } {
-  if (!oversized) {
-    return { zoom: MIN_ZOOM, position: { x: 0, y: 0 } };
-  }
-  const boundedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+  const boundedZoom = Math.max(
+    FIT_ZOOM,
+    Math.min(maximumZoom(sideLength, viewportSize), zoom),
+  );
+  const geometry = fittedBoardGeometry(sideLength, viewportSize);
   return {
     zoom: boundedZoom,
     position: clampViewport(
       position,
-      boardContentSize(sideLength, MIN_TILE_SIZE * boundedZoom),
+      boardContentSize(
+        sideLength,
+        geometry.tileSize * boundedZoom,
+        geometry.gutter * boundedZoom,
+        geometry.padding * boundedZoom,
+      ),
       viewportSize,
     ),
   };
+}
+
+export interface TileMotion {
+  readonly key: string;
+  readonly exponent: number;
+  readonly fromX: number;
+  readonly fromY: number;
+  readonly toX: number;
+  readonly toY: number;
+  readonly merges: boolean;
+}
+
+export function planTileMotion(
+  transitions: readonly TileTransition[],
+  tileSize: number,
+  gutter = TILE_GUTTER,
+  padding = BOARD_PADDING,
+): TileMotion[] {
+  const step = tileSize + gutter;
+  return transitions.map((transition, index) => ({
+    key: `${transition.from.row}:${transition.from.column}:${index}`,
+    exponent: transition.exponent,
+    fromX: padding + gutter / 2 + transition.from.column * step,
+    fromY: padding + gutter / 2 + transition.from.row * step,
+    toX: padding + gutter / 2 + transition.to.column * step,
+    toY: padding + gutter / 2 + transition.to.row * step,
+    merges: transition.merges,
+  }));
 }
 
 export function visibleEdges(
