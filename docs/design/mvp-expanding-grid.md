@@ -199,11 +199,15 @@ than reconstructing identity from the final board. Existing tiles slide from
 their source cells to their destinations in every direction; both participants
 in a merge converge before the merged result appears, then the spawned tile
 enters with a short fade and scale. Input waits briefly while this transition
-resolves so rapid moves cannot overlap. New game, restoration, growth, or an
-interrupted animation cancels transient presentation without changing the
-already-completed engine state or persisted save. When Reduce Motion is enabled,
-the final state appears immediately without spatial motion. Animation is never
-required to understand or operate the board.
+resolves so rapid moves cannot overlap. During that lock, all four directional
+buttons expose their disabled state to VoiceOver and TalkBack, and visible,
+screen-reader-readable status text explains that directional moves are
+temporarily unavailable. The status is discoverable without issuing a live
+announcement for every move. New game, restoration, growth, or an interrupted
+animation cancels transient presentation without changing the already-completed
+engine state or persisted save. When Reduce Motion is enabled, the final state
+appears immediately without spatial motion. Animation is never required to
+understand or operate the board.
 
 Accessible directional buttons remain at least 44 logical points. Inspector text
 reports the exact one-based row and column plus value or “empty.” Live

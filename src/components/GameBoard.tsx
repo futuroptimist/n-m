@@ -448,6 +448,7 @@ export function GameBoard({
               <View style={styles.controlRow}>
                 {(['up', 'left', 'down', 'right'] as const).map((direction) => (
                   <BoardButton
+                    disabled={moveResult !== null}
                     key={direction}
                     label={`Move ${direction}`}
                     onPress={() => onMove(direction)}

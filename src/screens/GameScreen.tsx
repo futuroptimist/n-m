@@ -253,8 +253,12 @@ export function GameScreen() {
           <Text style={styles.primaryButtonText}>Controls</Text>
         </Pressable>
         {moveResult === null ? null : (
-          <Text accessibilityLiveRegion="polite" style={styles.moveStatus}>
-            Moving tiles…
+          <Text
+            accessible
+            accessibilityLabel="Moving tiles. Directional moves are temporarily unavailable."
+            style={styles.moveStatus}
+          >
+            Moving tiles… Directional moves are temporarily unavailable.
           </Text>
         )}
         {game.status === 'game-over' ? (
