@@ -1,5 +1,6 @@
 import {
   tileValue,
+  type Board,
   type Cell,
   type Direction,
   type EngineEvent,
@@ -170,6 +171,44 @@ export function tileRenderKey(
   obscuredByMotion: boolean,
 ): string {
   return `cell-${row}-${column}-${exponent ?? 'empty'}-${obscuredByMotion ? 'moving' : 'settled'}`;
+}
+
+export interface PresentedCell {
+  readonly row: number;
+  readonly column: number;
+  readonly exponent: number | null;
+  readonly visible: boolean;
+  readonly key: string;
+}
+
+export interface BoardPresentation {
+  readonly cells: readonly PresentedCell[];
+  readonly overlays: readonly TileTransition[];
+}
+
+export function planBoardPresentation(
+  board: Board,
+  transitions: readonly TileTransition[],
+  sliding: boolean,
+  sideLength = board.length,
+): BoardPresentation {
+  const incomingCells = new Set(
+    transitions.map(({ to }) => `${to.row}:${to.column}`),
+  );
+  const cells = board.slice(0, sideLength).flatMap((row, rowIndex) =>
+    row.slice(0, sideLength).map((exponent, columnIndex) => {
+      const obscuredByMotion =
+        sliding && incomingCells.has(`${rowIndex}:${columnIndex}`);
+      return {
+        row: rowIndex,
+        column: columnIndex,
+        exponent,
+        visible: !obscuredByMotion,
+        key: tileRenderKey(rowIndex, columnIndex, exponent, obscuredByMotion),
+      };
+    }),
+  );
+  return { cells, overlays: sliding ? transitions : [] };
 }
 
 export function planTileMotion(

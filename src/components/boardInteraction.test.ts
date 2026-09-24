@@ -2,6 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  ENGINE_SCHEMA_VERSION,
+  move,
+  tileValue,
+  type GameState,
+} from '../engine';
+
+import {
   BOARD_PADDING,
   FIT_ZOOM,
   TOUCH_TILE_SIZE,
@@ -17,11 +24,11 @@ import {
   minimumBoardSize,
   maximumZoom,
   normalizeViewport,
+  planBoardPresentation,
   planTileMotion,
   selectMoveAnnouncement,
   shouldCaptureBoardGesture,
   touchFriendlyZoom,
-  tileRenderKey,
   visibleEdges,
 } from './boardInteraction';
 
@@ -128,12 +135,66 @@ test('plans deterministic tile paths including duplicate-value merges', () => {
   );
 });
 
-test('remounts a merge destination when its settled value is revealed', () => {
-  const hiddenMergedResult = tileRenderKey(0, 0, 2, true);
-  const mergedResult = tileRenderKey(0, 0, 2, false);
+test('presents an engine merge with distinct motion and reveal identities', () => {
+  const game: GameState = {
+    schemaVersion: ENGINE_SCHEMA_VERSION,
+    activeK: 10,
+    sideLength: 2,
+    board: [
+      [1, 1],
+      [null, null],
+    ],
+    highestCreatedExponent: 1,
+    score: 0n,
+    status: 'active',
+  };
+  const random = [0, 0][Symbol.iterator]();
+  const result = move(game, 'left', () => random.next().value ?? 0);
+  const sliding = planBoardPresentation(
+    result.state.board,
+    result.transitions,
+    true,
+  );
+  const revealed = planBoardPresentation(
+    result.state.board,
+    result.transitions,
+    false,
+  );
+  const participants = planTileMotion(sliding.overlays, 44).filter(
+    ({ merges }) => merges,
+  );
+  const hiddenDestination = sliding.cells.find(
+    ({ row, column }) => row === 0 && column === 0,
+  );
+  const visibleDestinations = revealed.cells.filter(
+    ({ row, column, exponent, visible }) =>
+      row === 0 && column === 0 && exponent === 2 && visible,
+  );
 
-  assert.notEqual(mergedResult, hiddenMergedResult);
-  assert.equal(mergedResult, tileRenderKey(0, 0, 2, false));
+  assert.equal(result.state.board[0]?.[0], 2);
+  assert.equal(tileValue(result.state.board[0]?.[0] ?? 0), 4n);
+  assert.equal(participants.length, 2);
+  assert.notEqual(participants[0]?.key, participants[1]?.key);
+  assert.deepEqual(
+    participants.map(({ toX, toY }) => ({ toX, toY })),
+    [
+      { toX: 6, toY: 6 },
+      { toX: 6, toY: 6 },
+    ],
+  );
+  assert.equal(hiddenDestination?.exponent, 2);
+  assert.equal(hiddenDestination?.visible, false);
+  assert.equal(visibleDestinations.length, 1);
+  assert.equal(revealed.overlays.length, 0);
+  assert.notEqual(hiddenDestination?.key, visibleDestinations[0]?.key);
+
+  // Reduce Motion takes the same immediate, overlay-free presentation path.
+  const reducedMotion = planBoardPresentation(
+    result.state.board,
+    result.transitions,
+    false,
+  );
+  assert.deepEqual(reducedMotion, revealed);
 });
 
 test('uses animation durations that are exactly half their original values', () => {
