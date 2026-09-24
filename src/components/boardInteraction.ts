@@ -11,6 +11,8 @@ export const TILE_GUTTER = 6;
 export const BOARD_PADDING = 3;
 export const FIT_ZOOM = 1;
 export const MAX_ZOOM = 2.5;
+export const TILE_MOTION_DURATION_MS = 75;
+export const TILE_SPAWN_DURATION_MS = 50;
 
 export interface BoardGeometry {
   readonly tileSize: number;
@@ -159,6 +161,14 @@ export interface TileMotion {
   readonly toX: number;
   readonly toY: number;
   readonly merges: boolean;
+}
+
+export function tileRenderKey(
+  row: number,
+  column: number,
+  exponent: number | null,
+): string {
+  return `cell-${row}-${column}-${exponent ?? 'empty'}`;
 }
 
 export function planTileMotion(

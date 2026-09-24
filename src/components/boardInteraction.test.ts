@@ -6,6 +6,8 @@ import {
   FIT_ZOOM,
   TOUCH_TILE_SIZE,
   TILE_GUTTER,
+  TILE_MOTION_DURATION_MS,
+  TILE_SPAWN_DURATION_MS,
   boardContentSize,
   cellDescription,
   clampViewport,
@@ -19,6 +21,7 @@ import {
   selectMoveAnnouncement,
   shouldCaptureBoardGesture,
   touchFriendlyZoom,
+  tileRenderKey,
   visibleEdges,
 } from './boardInteraction';
 
@@ -84,45 +87,52 @@ test('normalizes full-board fit and clamps enlarged viewports', () => {
 });
 
 test('plans deterministic tile paths including duplicate-value merges', () => {
-  assert.deepEqual(
-    planTileMotion(
-      [
-        {
-          from: { row: 0, column: 1 },
-          to: { row: 0, column: 0 },
-          exponent: 1,
-          merges: true,
-        },
-        {
-          from: { row: 0, column: 2 },
-          to: { row: 0, column: 0 },
-          exponent: 1,
-          merges: true,
-        },
-      ],
-      44,
-    ),
+  const motions = planTileMotion(
     [
       {
-        key: '0:1:0',
+        from: { row: 0, column: 1 },
+        to: { row: 0, column: 0 },
         exponent: 1,
-        fromX: 56,
-        fromY: 6,
-        toX: 6,
-        toY: 6,
         merges: true,
       },
       {
-        key: '0:2:1',
+        from: { row: 0, column: 2 },
+        to: { row: 0, column: 0 },
         exponent: 1,
-        fromX: 106,
-        fromY: 6,
-        toX: 6,
-        toY: 6,
         merges: true,
       },
     ],
+    44,
   );
+  assert.deepEqual(motions, [
+    {
+      key: '0:1:0',
+      exponent: 1,
+      fromX: 56,
+      fromY: 6,
+      toX: 6,
+      toY: 6,
+      merges: true,
+    },
+    {
+      key: '0:2:1',
+      exponent: 1,
+      fromX: 106,
+      fromY: 6,
+      toX: 6,
+      toY: 6,
+      merges: true,
+    },
+  ]);
+
+  assert.notEqual(motions[0].key, motions[1].key);
+  assert.notEqual(tileRenderKey(0, 0, 1), tileRenderKey(0, 0, 2));
+  assert.equal(tileRenderKey(0, 0, 2), 'cell-0-0-2');
+});
+
+test('uses half-length ordinary tile animation timings', () => {
+  assert.equal(TILE_MOTION_DURATION_MS, 75);
+  assert.equal(TILE_SPAWN_DURATION_MS, 50);
 });
 
 test('describes visible edges without relying on color', () => {
