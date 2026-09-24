@@ -6,6 +6,8 @@ import {
   FIT_ZOOM,
   TOUCH_TILE_SIZE,
   TILE_GUTTER,
+  TILE_SLIDE_DURATION_MS,
+  TILE_SPAWN_DURATION_MS,
   boardContentSize,
   cellDescription,
   clampViewport,
@@ -19,6 +21,7 @@ import {
   selectMoveAnnouncement,
   shouldCaptureBoardGesture,
   touchFriendlyZoom,
+  tileRenderKey,
   visibleEdges,
 } from './boardInteraction';
 
@@ -123,6 +126,19 @@ test('plans deterministic tile paths including duplicate-value merges', () => {
       },
     ],
   );
+});
+
+test('remounts a merge destination when its settled value is revealed', () => {
+  const hiddenMergedResult = tileRenderKey(0, 0, 2, true);
+  const mergedResult = tileRenderKey(0, 0, 2, false);
+
+  assert.notEqual(mergedResult, hiddenMergedResult);
+  assert.equal(mergedResult, tileRenderKey(0, 0, 2, false));
+});
+
+test('uses animation durations that are exactly half their original values', () => {
+  assert.equal(TILE_SLIDE_DURATION_MS, 150 / 2);
+  assert.equal(TILE_SPAWN_DURATION_MS, 100 / 2);
 });
 
 test('describes visible edges without relying on color', () => {

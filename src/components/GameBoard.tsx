@@ -31,6 +31,8 @@ import {
 import { colors, spacing } from '../theme';
 import {
   FIT_ZOOM,
+  TILE_SLIDE_DURATION_MS,
+  TILE_SPAWN_DURATION_MS,
   boardContentSize,
   cellDescription,
   clampViewport,
@@ -42,6 +44,7 @@ import {
   shouldCaptureBoardGesture,
   swipeDirection,
   touchFriendlyZoom,
+  tileRenderKey,
   visibleEdges,
   type ViewportPosition,
 } from './boardInteraction';
@@ -192,7 +195,7 @@ export function GameBoard({
     progress.setValue(0);
     spawnProgress.setValue(0);
     Animated.timing(progress, {
-      duration: 150,
+      duration: TILE_SLIDE_DURATION_MS,
       toValue: 1,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -203,7 +206,7 @@ export function GameBoard({
       }
       Animated.parallel([
         Animated.timing(spawnProgress, {
-          duration: 100,
+          duration: TILE_SPAWN_DURATION_MS,
           toValue: 1,
           useNativeDriver: true,
         }),
@@ -316,6 +319,9 @@ export function GameBoard({
                   {boardRow
                     .slice(0, presentationSideLength)
                     .map((exponent, columnIndex) => {
+                      const obscuredByMotion =
+                        sliding &&
+                        incomingCells.has(`${rowIndex}:${columnIndex}`);
                       const isSpawn =
                         spawn?.type === 'spawn' &&
                         spawn.row === rowIndex &&
@@ -324,11 +330,15 @@ export function GameBoard({
                         <Tile
                           exponent={exponent}
                           gutter={renderedGutter}
-                          key={`cell-${rowIndex}-${columnIndex}`}
+                          key={tileRenderKey(
+                            rowIndex,
+                            columnIndex,
+                            exponent,
+                            obscuredByMotion,
+                          )}
                           size={tileSize * zoom}
                           style={
-                            sliding &&
-                            incomingCells.has(`${rowIndex}:${columnIndex}`)
+                            obscuredByMotion
                               ? { opacity: 0 }
                               : isSpawn && moveResult !== null && !reduceMotion
                                 ? {
