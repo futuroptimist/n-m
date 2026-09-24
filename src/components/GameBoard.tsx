@@ -31,6 +31,8 @@ import {
 import { colors, spacing } from '../theme';
 import {
   FIT_ZOOM,
+  TILE_SLIDE_DURATION_MS,
+  TILE_SPAWN_DURATION_MS,
   boardContentSize,
   cellDescription,
   clampViewport,
@@ -38,6 +40,7 @@ import {
   fittedBoardGeometry,
   maximumZoom,
   normalizeViewport,
+  planBoardPresentation,
   planTileMotion,
   shouldCaptureBoardGesture,
   swipeDirection,
@@ -118,14 +121,17 @@ export function GameBoard({
   const clampedPosition = clampViewport(position, contentSize, viewportSize);
   const enlarged = zoom > FIT_ZOOM + 0.01;
   const edges = visibleEdges(clampedPosition, contentSize, viewportSize);
-  const motions = planTileMotion(
+  const presentation = planBoardPresentation(
+    game.board,
     moveResult?.transitions ?? [],
+    sliding,
+    presentationSideLength,
+  );
+  const motions = planTileMotion(
+    presentation.overlays,
     tileSize * zoom,
     renderedGutter,
     renderedPadding,
-  );
-  const incomingCells = new Set(
-    (moveResult?.transitions ?? []).map(({ to }) => `${to.row}:${to.column}`),
   );
   const spawn = moveResult?.events.find((event) => event.type === 'spawn');
 
@@ -192,7 +198,7 @@ export function GameBoard({
     progress.setValue(0);
     spawnProgress.setValue(0);
     Animated.timing(progress, {
-      duration: 150,
+      duration: TILE_SLIDE_DURATION_MS,
       toValue: 1,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -203,7 +209,7 @@ export function GameBoard({
       }
       Animated.parallel([
         Animated.timing(spawnProgress, {
-          duration: 100,
+          duration: TILE_SPAWN_DURATION_MS,
           toValue: 1,
           useNativeDriver: true,
         }),
@@ -316,6 +322,10 @@ export function GameBoard({
                   {boardRow
                     .slice(0, presentationSideLength)
                     .map((exponent, columnIndex) => {
+                      const cell =
+                        presentation.cells[
+                          rowIndex * presentationSideLength + columnIndex
+                        ];
                       const isSpawn =
                         spawn?.type === 'spawn' &&
                         spawn.row === rowIndex &&
@@ -324,11 +334,10 @@ export function GameBoard({
                         <Tile
                           exponent={exponent}
                           gutter={renderedGutter}
-                          key={`cell-${rowIndex}-${columnIndex}`}
+                          key={cell?.key}
                           size={tileSize * zoom}
                           style={
-                            sliding &&
-                            incomingCells.has(`${rowIndex}:${columnIndex}`)
+                            cell?.visible === false
                               ? { opacity: 0 }
                               : isSpawn && moveResult !== null && !reduceMotion
                                 ? {
