@@ -4,6 +4,8 @@ import test from 'node:test';
 import {
   BOARD_PADDING,
   FIT_ZOOM,
+  SLIDE_DURATION_MS,
+  SPAWN_DURATION_MS,
   TOUCH_TILE_SIZE,
   TILE_GUTTER,
   boardContentSize,
@@ -14,11 +16,13 @@ import {
   fittedTileSize,
   minimumBoardSize,
   maximumZoom,
+  movingDestinationKeys,
   normalizeViewport,
   planTileMotion,
   selectMoveAnnouncement,
   shouldCaptureBoardGesture,
   touchFriendlyZoom,
+  tileMotionOpacity,
   visibleEdges,
 } from './boardInteraction';
 
@@ -123,6 +127,34 @@ test('plans deterministic tile paths including duplicate-value merges', () => {
       },
     ],
   );
+});
+
+test('reveals one final destination after equal-value merge motion finishes', () => {
+  const transitions = [
+    {
+      from: { row: 0, column: 1 },
+      to: { row: 0, column: 0 },
+      exponent: 1,
+      merges: true,
+    },
+    {
+      from: { row: 0, column: 2 },
+      to: { row: 0, column: 0 },
+      exponent: 1,
+      merges: true,
+    },
+  ] as const;
+  const destinations = movingDestinationKeys(transitions);
+
+  assert.deepEqual([...destinations], ['0:0']);
+  assert.equal(tileMotionOpacity(true, destinations, 0, 0), 0);
+  assert.equal(tileMotionOpacity(false, destinations, 0, 0), 1);
+  assert.equal(tileMotionOpacity(true, destinations, 1, 0), 1);
+});
+
+test('uses half-length ordinary motion timings', () => {
+  assert.equal(SLIDE_DURATION_MS, 75);
+  assert.equal(SPAWN_DURATION_MS, 50);
 });
 
 test('describes visible edges without relying on color', () => {
