@@ -11,6 +11,8 @@ export const TILE_GUTTER = 6;
 export const BOARD_PADDING = 3;
 export const FIT_ZOOM = 1;
 export const MAX_ZOOM = 2.5;
+export const TILE_MOTION_DURATION = 75;
+export const SPAWN_MOTION_DURATION = 50;
 
 export interface BoardGeometry {
   readonly tileSize: number;
@@ -169,7 +171,7 @@ export function planTileMotion(
 ): TileMotion[] {
   const step = tileSize + gutter;
   return transitions.map((transition, index) => ({
-    key: `${transition.from.row}:${transition.from.column}:${index}`,
+    key: `${transition.from.row}:${transition.from.column}-${transition.to.row}:${transition.to.column}-${transition.merges ? 'merge' : 'slide'}-${index}`,
     exponent: transition.exponent,
     fromX: padding + gutter / 2 + transition.from.column * step,
     fromY: padding + gutter / 2 + transition.from.row * step,
