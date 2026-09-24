@@ -31,17 +31,21 @@ import {
 import { colors, spacing } from '../theme';
 import {
   FIT_ZOOM,
+  SLIDE_DURATION_MS,
+  SPAWN_DURATION_MS,
   boardContentSize,
   cellDescription,
   clampViewport,
   edgeDescription,
   fittedBoardGeometry,
   maximumZoom,
+  movingDestinationKeys,
   normalizeViewport,
   planTileMotion,
   shouldCaptureBoardGesture,
   swipeDirection,
   touchFriendlyZoom,
+  tileMotionOpacity,
   visibleEdges,
   type ViewportPosition,
 } from './boardInteraction';
@@ -124,9 +128,7 @@ export function GameBoard({
     renderedGutter,
     renderedPadding,
   );
-  const incomingCells = new Set(
-    (moveResult?.transitions ?? []).map(({ to }) => `${to.row}:${to.column}`),
-  );
+  const incomingCells = movingDestinationKeys(moveResult?.transitions ?? []);
   const spawn = moveResult?.events.find((event) => event.type === 'spawn');
 
   const applyViewport = useCallback(
@@ -192,7 +194,7 @@ export function GameBoard({
     progress.setValue(0);
     spawnProgress.setValue(0);
     Animated.timing(progress, {
-      duration: 150,
+      duration: SLIDE_DURATION_MS,
       toValue: 1,
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -203,7 +205,7 @@ export function GameBoard({
       }
       Animated.parallel([
         Animated.timing(spawnProgress, {
-          duration: 100,
+          duration: SPAWN_DURATION_MS,
           toValue: 1,
           useNativeDriver: true,
         }),
@@ -327,22 +329,30 @@ export function GameBoard({
                           key={`cell-${rowIndex}-${columnIndex}`}
                           size={tileSize * zoom}
                           style={
-                            sliding &&
-                            incomingCells.has(`${rowIndex}:${columnIndex}`)
-                              ? { opacity: 0 }
-                              : isSpawn && moveResult !== null && !reduceMotion
-                                ? {
-                                    opacity: spawnProgress,
-                                    transform: [
-                                      {
-                                        scale: spawnProgress.interpolate({
-                                          inputRange: [0, 1],
-                                          outputRange: [0.7, 1],
-                                        }),
-                                      },
-                                    ],
-                                  }
-                                : undefined
+                            isSpawn && moveResult !== null && !reduceMotion
+                              ? {
+                                  opacity: spawnProgress,
+                                  transform: [
+                                    {
+                                      scale: spawnProgress.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [0.7, 1],
+                                      }),
+                                    },
+                                  ],
+                                }
+                              : {
+                                  // Keep opacity explicit when the motion
+                                  // overlay is removed. Native-driven style
+                                  // cleanup can otherwise leave a reused
+                                  // destination view transparent.
+                                  opacity: tileMotionOpacity(
+                                    sliding,
+                                    incomingCells,
+                                    rowIndex,
+                                    columnIndex,
+                                  ),
+                                }
                           }
                         />
                       );

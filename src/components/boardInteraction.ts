@@ -11,6 +11,8 @@ export const TILE_GUTTER = 6;
 export const BOARD_PADDING = 3;
 export const FIT_ZOOM = 1;
 export const MAX_ZOOM = 2.5;
+export const SLIDE_DURATION_MS = 75;
+export const SPAWN_DURATION_MS = 50;
 
 export interface BoardGeometry {
   readonly tileSize: number;
@@ -177,6 +179,21 @@ export function planTileMotion(
     toY: padding + gutter / 2 + transition.to.row * step,
     merges: transition.merges,
   }));
+}
+
+export function movingDestinationKeys(
+  transitions: readonly TileTransition[],
+): ReadonlySet<string> {
+  return new Set(transitions.map(({ to }) => `${to.row}:${to.column}`));
+}
+
+export function tileMotionOpacity(
+  sliding: boolean,
+  movingDestinations: ReadonlySet<string>,
+  row: number,
+  column: number,
+): 0 | 1 {
+  return sliding && movingDestinations.has(`${row}:${column}`) ? 0 : 1;
 }
 
 export function visibleEdges(
