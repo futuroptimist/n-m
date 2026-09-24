@@ -31,6 +31,8 @@ import {
 import { colors, spacing } from '../theme';
 import {
   FIT_ZOOM,
+  SPAWN_MOTION_DURATION,
+  TILE_MOTION_DURATION,
   boardContentSize,
   cellDescription,
   clampViewport,
@@ -98,6 +100,7 @@ export function GameBoard({
   const viewportState = useRef({ zoom: FIT_ZOOM, position: { x: 0, y: 0 } });
   const geometry = useRef({ sideLength: game.sideLength, viewportSize: 0 });
   const onMoveRef = useRef(onMove);
+  const animationSequence = useRef(0);
 
   const growth = moveResult?.events.find((event) => event.type === 'growth');
   const presentationSideLength =
@@ -177,6 +180,7 @@ export function GameBoard({
 
   useLayoutEffect(() => {
     if (moveResult === null) return;
+    const sequence = ++animationSequence.current;
     progress.stopAnimation();
     spawnProgress.stopAnimation();
     if (reduceMotion || viewportSize === 0) {
@@ -192,26 +196,35 @@ export function GameBoard({
     progress.setValue(0);
     spawnProgress.setValue(0);
     Animated.timing(progress, {
-      duration: 150,
+      duration: TILE_MOTION_DURATION,
       toValue: 1,
       useNativeDriver: true,
     }).start(({ finished }) => {
+      if (!finished || sequence !== animationSequence.current) return;
+      // Reset the native-driven value before removing its views. This prevents
+      // iOS from retaining a completed merge layer over the settled result.
+      progress.setValue(1);
       setSliding(false);
-      if (!finished) {
-        onAnimationComplete();
-        return;
-      }
       Animated.parallel([
         Animated.timing(spawnProgress, {
-          duration: 100,
+          duration: SPAWN_MOTION_DURATION,
           toValue: 1,
           useNativeDriver: true,
         }),
-      ]).start(() => onAnimationComplete());
+      ]).start(({ finished: spawnFinished }) => {
+        if (spawnFinished && sequence === animationSequence.current) {
+          spawnProgress.setValue(1);
+          onAnimationComplete();
+        }
+      });
     });
     return () => {
+      animationSequence.current += 1;
       progress.stopAnimation();
       spawnProgress.stopAnimation();
+      // The final board is already authoritative. Never leave native animated
+      // views mounted when a transition is cancelled or replaced.
+      setSliding(false);
     };
   }, [
     moveResult,

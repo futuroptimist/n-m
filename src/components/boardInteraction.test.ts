@@ -6,6 +6,8 @@ import {
   FIT_ZOOM,
   TOUCH_TILE_SIZE,
   TILE_GUTTER,
+  SPAWN_MOTION_DURATION,
+  TILE_MOTION_DURATION,
   boardContentSize,
   cellDescription,
   clampViewport,
@@ -104,7 +106,7 @@ test('plans deterministic tile paths including duplicate-value merges', () => {
     ),
     [
       {
-        key: '0:1:0',
+        key: '0:1-0:0-merge-0',
         exponent: 1,
         fromX: 56,
         fromY: 6,
@@ -113,7 +115,7 @@ test('plans deterministic tile paths including duplicate-value merges', () => {
         merges: true,
       },
       {
-        key: '0:2:1',
+        key: '0:2-0:0-merge-1',
         exponent: 1,
         fromX: 106,
         fromY: 6,
@@ -123,6 +125,32 @@ test('plans deterministic tile paths including duplicate-value merges', () => {
       },
     ],
   );
+  const duplicateMergePlan = planTileMotion(
+    [
+      {
+        from: { row: 0, column: 1 },
+        to: { row: 0, column: 0 },
+        exponent: 1,
+        merges: true,
+      },
+      {
+        from: { row: 0, column: 2 },
+        to: { row: 0, column: 0 },
+        exponent: 1,
+        merges: true,
+      },
+    ],
+    44,
+  );
+  assert.equal(
+    new Set(duplicateMergePlan.map(({ key }) => key)).size,
+    duplicateMergePlan.length,
+  );
+});
+
+test('uses half-length ordinary motion timings', () => {
+  assert.equal(TILE_MOTION_DURATION, 150 / 2);
+  assert.equal(SPAWN_MOTION_DURATION, 100 / 2);
 });
 
 test('describes visible edges without relying on color', () => {
