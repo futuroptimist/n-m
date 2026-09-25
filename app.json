@@ -12,6 +12,10 @@
     "android": {
       "package": "com.futuroptimist.nm"
     },
-    "plugins": ["expo-dev-client", "./plugins/withIosFrameworkSigning"]
+    "plugins": [
+      "expo-dev-client",
+      "./plugins/withIosSceneLifecycle",
+      "./plugins/withIosFrameworkSigning"
+    ]
   }
 }
