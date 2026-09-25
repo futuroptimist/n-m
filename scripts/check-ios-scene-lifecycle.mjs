@@ -1,27 +1,41 @@
 import assert from 'node:assert/strict';
-import { cp, mkdtemp, readFile, readdir, rm, symlink } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import plistModule from '@expo/plist';
+import { createRequire } from 'node:module';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'nm-ios-scenes-'));
-const plist = plistModule.default ?? plistModule;
+const require = createRequire(import.meta.url);
+const withIosSceneLifecycle = require('../plugins/withIosSceneLifecycle');
+const { addSceneManifest, updateAppDelegate } = withIosSceneLifecycle;
 
-function assertSpawnSucceeded(result, command) {
-  assert.equal(
-    result.error,
-    undefined,
-    `${command} could not be started: ${result.error?.message}`,
-  );
-  assert.equal(
-    result.status,
-    0,
-    `${command} failed (status: ${result.status ?? 'null'}, signal: ${result.signal ?? 'none'}):\n${result.stdout}\n${result.stderr}`,
-  );
+const appDelegateFixture = `import Expo
+import React
+import ReactAppDependencyProvider
+
+@UIApplicationMain
+public class AppDelegate: ExpoAppDelegate {
+  var window: UIWindow?
+
+  public override func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+  ) -> Bool {
+    let delegate = ReactNativeDelegate()
+    let factory = ExpoReactNativeFactory(delegate: delegate)
+    delegate.dependencyProvider = RCTAppDependencyProvider()
+
+    reactNativeDelegate = delegate
+    reactNativeFactory = factory
+
+#if os(iOS) || os(tvOS)
+    window = UIWindow(frame: UIScreen.main.bounds)
+    factory.startReactNative(
+      withModuleName: "main",
+      in: window,
+      launchOptions: launchOptions)
+#endif
+
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
 }
+`;
 
 function validateAppDelegate(contents) {
   assert.match(
@@ -49,76 +63,42 @@ function validateSceneManifest(infoPlist) {
   );
 }
 
-try {
-  for (const entry of ['app.json', 'package.json', 'plugins']) {
-    await cp(path.join(root, entry), path.join(temporaryRoot, entry), {
-      recursive: true,
-    });
-  }
-  await symlink(
-    path.join(root, 'node_modules'),
-    path.join(temporaryRoot, 'node_modules'),
-  );
+const infoPlist = addSceneManifest({ CFBundleDisplayName: 'n^m' });
+const appDelegate = updateAppDelegate(appDelegateFixture, 'swift');
 
-  const expo = path.join(root, 'node_modules', '.bin', 'expo');
-  const result = spawnSync(
-    expo,
-    ['prebuild', '--platform', 'ios', '--no-install'],
-    {
-      cwd: temporaryRoot,
-      encoding: 'utf8',
-      env: { ...process.env, CI: '1' },
-    },
-  );
-  assertSpawnSucceeded(result, 'Expo prebuild');
+validateAppDelegate(appDelegate);
+validateSceneManifest(infoPlist);
+assert.equal(infoPlist.CFBundleDisplayName, 'n^m');
+assert.equal(
+  updateAppDelegate(appDelegate, 'swift'),
+  appDelegate,
+  'AppDelegate transformation must be idempotent',
+);
 
-  const iosEntries = await readdir(path.join(temporaryRoot, 'ios'), {
-    withFileTypes: true,
-  });
-  const applicationDirectory = iosEntries.find(
-    (entry) => entry.isDirectory() && !entry.name.endsWith('.xcodeproj'),
-  );
-  assert.ok(
-    applicationDirectory,
-    'generated iOS application directory not found',
-  );
-  const applicationPath = path.join(
-    temporaryRoot,
-    'ios',
-    applicationDirectory.name,
-  );
-  const appDelegate = await readFile(
-    path.join(applicationPath, 'AppDelegate.swift'),
-    'utf8',
-  );
-  const infoPlist = plist.parse(
-    await readFile(path.join(applicationPath, 'Info.plist'), 'utf8'),
-  );
+assert.throws(
+  () => updateAppDelegate(appDelegateFixture, 'objc'),
+  /requires a Swift AppDelegate/,
+);
+assert.throws(
+  () => updateAppDelegate('class UnexpectedAppDelegate {}', 'swift'),
+  /Could not add Expo scene support/,
+);
+assert.throws(
+  () =>
+    validateAppDelegate(
+      appDelegate.replace(', ExpoReactNativeFactoryProvider', ''),
+    ),
+  assert.AssertionError,
+  'validation must fail without AppDelegate factory-provider wiring',
+);
+assert.throws(
+  () =>
+    validateSceneManifest({
+      ...infoPlist,
+      UIApplicationSceneManifest: undefined,
+    }),
+  assert.AssertionError,
+  'validation must fail without the scene manifest',
+);
 
-  validateAppDelegate(appDelegate);
-  validateSceneManifest(infoPlist);
-
-  assert.throws(
-    () =>
-      validateAppDelegate(
-        appDelegate.replace(', ExpoReactNativeFactoryProvider', ''),
-      ),
-    assert.AssertionError,
-    'validation must fail without AppDelegate factory-provider wiring',
-  );
-  assert.throws(
-    () =>
-      validateSceneManifest({
-        ...infoPlist,
-        UIApplicationSceneManifest: undefined,
-      }),
-    assert.AssertionError,
-    'validation must fail without the scene manifest',
-  );
-
-  console.log(
-    'Generated iOS app uses the Expo scene delegate for React Native startup.',
-  );
-} finally {
-  await rm(temporaryRoot, { recursive: true, force: true });
-}
+console.log('iOS scene lifecycle config transformations passed.');
