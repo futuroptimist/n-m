@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import xcode from 'xcode';
 
+const phaseName = '[n-m] Sign Embedded Frameworks';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'nm-ios-signing-'));
 
@@ -19,6 +21,61 @@ function assertSpawnSucceeded(result, command) {
     0,
     `${command} failed (status: ${result.status ?? 'null'}, signal: ${result.signal ?? 'none'}):\n${result.stdout}\n${result.stderr}`,
   );
+}
+
+function decodePbxString(value) {
+  assert.equal(typeof value, 'string');
+  assert.ok(value.startsWith('"') && value.endsWith('"'));
+  return value.slice(1, -1).replaceAll('\\"', '"').replaceAll('\\\\', '\\');
+}
+
+function signingPhaseForApplication(project) {
+  const nativeTargets = project.pbxNativeTargetSection();
+  const applicationTargets = Object.entries(nativeTargets).filter(
+    ([key, target]) =>
+      !key.endsWith('_comment') &&
+      target.productType === '"com.apple.product-type.application"',
+  );
+  assert.equal(applicationTargets.length, 1, 'expected one application target');
+
+  const [, applicationTarget] = applicationTargets[0];
+  const phaseSection = project.hash.project.objects.PBXShellScriptBuildPhase;
+  const attachedSigningPhases = applicationTarget.buildPhases
+    .map(({ value }) => phaseSection[value])
+    .filter((phase) => phase && decodePbxString(phase.name) === phaseName);
+
+  assert.equal(
+    attachedSigningPhases.length,
+    1,
+    'application target must attach exactly one framework signing phase',
+  );
+  return attachedSigningPhases[0];
+}
+
+function validateSigningPhase(phase) {
+  assert.equal(phase.alwaysOutOfDate, 1);
+  assert.equal(phase.shellPath, '/bin/sh');
+  const script = decodePbxString(phase.shellScript);
+
+  assert.match(script, /\[ "\$PLATFORM_NAME" != "iphoneos" \]/);
+  assert.match(script, /\$\{CODE_SIGNING_ALLOWED:-YES\}.*= "NO"/);
+  assert.match(script, /\[ -z "\$\{EXPANDED_CODE_SIGN_IDENTITY:-\}" \]/);
+  assert.match(
+    script,
+    /find "\$frameworks_dir" -depth -type d -name '\*\.framework' -print \|/,
+  );
+  assert.match(script, /while IFS= read -r framework; do/);
+  assert.match(
+    script,
+    /\/usr\/bin\/codesign --force --sign "\$EXPANDED_CODE_SIGN_IDENTITY"\s+--preserve-metadata=identifier,entitlements "\$framework"/,
+  );
+}
+
+function runHookFixture(hook, fixturePath) {
+  return spawnSync('ruby', [fixturePath, temporaryRoot], {
+    encoding: 'utf8',
+    input: hook,
+  });
 }
 
 try {
@@ -40,68 +97,70 @@ try {
   );
   assertSpawnSucceeded(result, 'Expo prebuild');
 
-  const project = await readFile(
-    path.join(temporaryRoot, 'ios', 'nm.xcodeproj', 'project.pbxproj'),
-    'utf8',
+  const projectPath = path.join(
+    temporaryRoot,
+    'ios',
+    'nm.xcodeproj',
+    'project.pbxproj',
   );
+  const parsedProject = xcode.project(projectPath).parseSync();
+  const signingPhase = signingPhaseForApplication(parsedProject);
+  validateSigningPhase(signingPhase);
+
+  const noOpPhase = {
+    ...signingPhase,
+    shellScript: signingPhase.shellScript.replace(
+      /\\?"?\/usr\/bin\/codesign[^\n]*/,
+      ': # codesign removed',
+    ),
+  };
+  assert.throws(
+    () => validateSigningPhase(noOpPhase),
+    (error) => error instanceof assert.AssertionError,
+    'a no-op in place of codesign must fail validation',
+  );
+
   const podfile = await readFile(
     path.join(temporaryRoot, 'ios', 'Podfile'),
     'utf8',
   );
-
-  assert.match(project, /\[n-m\] Sign Embedded Frameworks/);
-  assert.match(project, /EXPANDED_CODE_SIGN_IDENTITY/);
-  assert.ok(project.includes("name '*.framework'"));
-  assert.match(project, /alwaysOutOfDate = 1/);
-  assert.match(
-    podfile,
-    /n-m: keep framework signing after CocoaPods embedding/,
+  const marker = '# n-m: keep framework signing after CocoaPods embedding';
+  const markerIndex = podfile.indexOf(marker);
+  assert.notEqual(
+    markerIndex,
+    -1,
+    'generated Podfile must contain ordering hook',
   );
-  assert.match(podfile, /\[CP\] Embed Pods Frameworks/);
-
-  const hook = podfile.slice(
-    podfile.indexOf('# n-m: keep framework signing after CocoaPods embedding'),
+  const hook = podfile.slice(markerIndex);
+  const fixturePath = path.join(
+    root,
+    'scripts',
+    'fixtures',
+    'ios-signing-post-integrate.rb',
   );
-  const rubyHarness = String.raw`
-Phase = Struct.new(:name)
-Target = Struct.new(:build_phases) do
-  def shell_script_build_phases = build_phases
-end
-class Project
-  attr_reader :targets, :saved
-  def initialize(targets)
-    @targets = targets
-    @saved = false
-  end
-  def save = @saved = true
-end
-AggregateTarget = Struct.new(:user_project)
-Installer = Struct.new(:aggregate_targets)
+  assertSpawnSucceeded(
+    runHookFixture(hook, fixturePath),
+    'Generated Podfile ordering hook check',
+  );
 
-$post_integrate_hook = nil
-def post_integrate(&hook) = $post_integrate_hook = hook
-eval(STDIN.read, binding, 'generated Podfile signing hook')
-
-signing = Phase.new('[n-m] Sign Embedded Frameworks')
-embedding = Phase.new('[CP] Embed Pods Frameworks')
-other = Phase.new('Other phase')
-target = Target.new([signing, other, embedding])
-project = Project.new([target])
-$post_integrate_hook.call(Installer.new([AggregateTarget.new(project)]))
-
-names = target.build_phases.map(&:name)
-expected = ['Other phase', '[CP] Embed Pods Frameworks', '[n-m] Sign Embedded Frameworks']
-abort "unexpected build phase order: #{names.inspect}" unless names == expected
-abort 'project was not saved' unless project.saved
-`;
-  const rubyResult = spawnSync('ruby', ['-e', rubyHarness], {
-    encoding: 'utf8',
-    input: hook,
-  });
-  assertSpawnSucceeded(rubyResult, 'Generated Podfile ordering hook check');
+  const unpersistedHook = hook.replace(
+    '    project.save',
+    '    # project.save',
+  );
+  assert.notEqual(
+    unpersistedHook,
+    hook,
+    'negative mutation must change the hook',
+  );
+  const negativeHookResult = runHookFixture(unpersistedHook, fixturePath);
+  assert.notEqual(
+    negativeHookResult.status,
+    0,
+    'hook validation must fail when reordered phases are not persisted',
+  );
 
   console.log(
-    'Generated iOS project signs embedded frameworks after CocoaPods embedding.',
+    'Generated application target signs embedded frameworks after CocoaPods embedding.',
   );
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
