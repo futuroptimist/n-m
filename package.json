@@ -18,11 +18,12 @@
     "test:storage": "tsx --test src/storage/gameStorage.test.ts",
     "test:interaction": "tsx --test src/components/boardInteraction.test.ts",
     "test:ios-signing": "node scripts/check-ios-framework-signing.mjs",
-    "test": "npm run test:engine && npm run test:storage && npm run test:interaction && npm run test:ios-signing",
+    "test": "npm run test:engine && npm run test:storage && npm run test:interaction && npm run test:ios-scenes && npm run test:ios-signing",
     "check": "npm run format:check && npm run lint:md && npm run lint:app && npm run typecheck && npm test",
     "start": "expo start --dev-client",
     "ios": "expo run:ios",
-    "android": "expo run:android"
+    "android": "expo run:android",
+    "test:ios-scenes": "node scripts/check-ios-scene-lifecycle.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
