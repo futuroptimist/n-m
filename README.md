@@ -29,7 +29,9 @@ before making changes.
 
 ## Setup and quality checks
 
-Install Node.js 24 with nvm, then install the locked dependencies with npm:
+Install Node.js 24 with nvm and Ruby 2.6 or newer, then install the locked
+dependencies with npm. Ruby must be available as `ruby` on `PATH`; it runs the
+generated CocoaPods hook fixture in the standard `npm run check` path.
 
 ```sh
 nvm install 24
