@@ -31,6 +31,20 @@ development builds similarly require the Android SDK and an emulator or device.
 These commands generate native projects through Expo CNG; do not commit the
 generated `ios/` or `android/` directories.
 
+For a physical iOS development build, the repository's Expo config plugin adds a
+final Xcode build phase that signs every framework after CocoaPods embeds it.
+After generating the native project, verify that durable configuration without
+requiring a signing certificate:
+
+```sh
+npx expo prebuild --platform ios
+npm run check:ios-signing -- ios
+```
+
+Keep the generated `ios/` directory local. The signing phase is skipped for
+simulator builds and uses Xcode's selected development identity for `iphoneos`
+builds; it does not store or select certificates or provisioning profiles.
+
 ## Making a contribution
 
 1. Read [AGENTS.md](AGENTS.md) and the
