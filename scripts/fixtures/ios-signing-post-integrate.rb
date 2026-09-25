@@ -9,7 +9,9 @@ class Target
     @build_phases = names.map { |name| Phase.new(name) }
   end
 
-  def shell_script_build_phases = build_phases
+  def shell_script_build_phases
+    build_phases
+  end
 end
 
 class Project
@@ -33,7 +35,9 @@ AggregateTarget = Struct.new(:user_project)
 Installer = Struct.new(:aggregate_targets)
 
 $post_integrate_hook = nil
-def post_integrate(&hook) = $post_integrate_hook = hook
+def post_integrate(&hook)
+  $post_integrate_hook = hook
+end
 
 eval(STDIN.read, binding, 'generated Podfile signing hook')
 abort 'post_integrate hook was not registered' unless $post_integrate_hook

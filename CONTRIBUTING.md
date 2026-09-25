@@ -8,8 +8,10 @@ welcome. Keep each change focused so it is easy to understand and review.
 The repository contains the MVP specification and a minimal Expo-managed React
 Native and TypeScript application shell. The current screen verifies that the
 mobile foundation runs, but it does not contain gameplay yet. Install
-[Node.js 24](https://nodejs.org/) with its bundled npm, clone the repository,
-and run:
+[Node.js 24](https://nodejs.org/) with its bundled npm and Ruby 2.6 or newer,
+clone the repository, and run. Ensure Ruby is available as `ruby` on `PATH`; the
+mandatory iOS signing regression test executes a generated CocoaPods hook as
+part of `npm run check`.
 
 ```sh
 nvm install 24

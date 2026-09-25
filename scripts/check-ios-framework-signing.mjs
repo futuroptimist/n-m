@@ -78,7 +78,24 @@ function runHookFixture(hook, fixturePath) {
   });
 }
 
+function assertSupportedRuby() {
+  const result = spawnSync('ruby', ['--version'], { encoding: 'utf8' });
+  assertSpawnSucceeded(
+    result,
+    'Ruby 2.6 or newer is required by npm run test:ios-signing; install Ruby and ensure ruby is on PATH',
+  );
+  const match = result.stdout.match(/ruby (\d+)\.(\d+)/);
+  assert.ok(match, `could not determine Ruby version from: ${result.stdout}`);
+  const [, major, minor] = match.map(Number);
+  assert.ok(
+    major > 2 || (major === 2 && minor >= 6),
+    `npm run test:ios-signing requires Ruby 2.6 or newer (found ${result.stdout.trim()})`,
+  );
+}
+
 try {
+  assertSupportedRuby();
+
   for (const entry of ['app.json', 'package.json', 'plugins']) {
     await cp(path.join(root, entry), path.join(temporaryRoot, entry), {
       recursive: true,
@@ -106,6 +123,33 @@ try {
   const parsedProject = xcode.project(projectPath).parseSync();
   const signingPhase = signingPhaseForApplication(parsedProject);
   validateSigningPhase(signingPhase);
+
+  const applicationTarget = Object.entries(
+    parsedProject.pbxNativeTargetSection(),
+  ).find(
+    ([key, target]) =>
+      !key.endsWith('_comment') &&
+      target.productType === '"com.apple.product-type.application"',
+  )[1];
+  const signingReferenceIndex = applicationTarget.buildPhases.findIndex(
+    ({ value }) =>
+      parsedProject.hash.project.objects.PBXShellScriptBuildPhase[value] ===
+      signingPhase,
+  );
+  const [signingReference] = applicationTarget.buildPhases.splice(
+    signingReferenceIndex,
+    1,
+  );
+  assert.throws(
+    () => signingPhaseForApplication(parsedProject),
+    (error) => error instanceof assert.AssertionError,
+    'a detached signing phase must fail validation',
+  );
+  applicationTarget.buildPhases.splice(
+    signingReferenceIndex,
+    0,
+    signingReference,
+  );
 
   const noOpPhase = {
     ...signingPhase,
@@ -143,16 +187,21 @@ try {
     'Generated Podfile ordering hook check',
   );
 
-  const unpersistedHook = hook.replace(
-    '    project.save',
-    '    # project.save',
-  );
+  const incorrectlyPersistedHook = hook
+    .replace(
+      '  installer.aggregate_targets.map(&:user_project).uniq.each do |project|',
+      '  installer.aggregate_targets.map(&:user_project).uniq.each do |project|\n    project.save # deliberately persist the pre-reorder phase order',
+    )
+    .replace('    project.save\n  end\nend', '  end\nend');
   assert.notEqual(
-    unpersistedHook,
+    incorrectlyPersistedHook,
     hook,
     'negative mutation must change the hook',
   );
-  const negativeHookResult = runHookFixture(unpersistedHook, fixturePath);
+  const negativeHookResult = runHookFixture(
+    incorrectlyPersistedHook,
+    fixturePath,
+  );
   assert.notEqual(
     negativeHookResult.status,
     0,
