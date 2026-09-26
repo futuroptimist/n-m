@@ -96,9 +96,7 @@ export function GameBoard({
   const geometry = useRef({ sideLength: game.sideLength, viewportSize: 0 });
   const onMoveRef = useRef(onMove);
 
-  const growth = moveResult?.events.find((event) => event.type === 'growth');
-  const presentationSideLength =
-    growth?.type === 'growth' ? growth.from : game.sideLength;
+  const presentationSideLength = game.sideLength;
   const boardGeometry = fittedBoardGeometry(
     presentationSideLength,
     viewportSize,
