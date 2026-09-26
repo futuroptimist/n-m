@@ -101,13 +101,21 @@ rather than writing one overall result.
    does not change, and the warning appears for 5–10. With an unfinished run,
    select another value and press New game: first cancel and retain the exact
    run, then confirm and get a fresh 2×2 run at the selected `k`.
-5. **Growth:** in natural play at `k=1`, merge the first 4, 8, and 16. Confirm
-   board sizes 3×3, 4×4, and 5×5 respectively; existing positions remain while
-   space is added below/right, next-growth text advances, and play continues.
+5. **Direction-aware growth:** in natural play at `k=1`, exercise growth after
+   down-then-right, down-then-left, up-then-right, and up-then-left direction
+   histories across the first 4, 8, 16, and later milestones. Confirm each new
+   row appears opposite the latest vertical direction and each new column
+   opposite the latest horizontal direction. Retained corner tiles, stationary
+   tiles, both merge participants, and the spawned tile must appear in their
+   exact shifted cells with no blank occupied cells. Record only combinations
+   actually observed; do not infer an unobserved combination.
 6. **Persistence:** note `k`, board cells, score, next milestone, and status;
    background the app, then terminate and relaunch it through the normal OS app
    switcher/launcher flow. Confirm the same state resumes atomically. Make
-   another move and repeat. This is a real relaunch, not hot reload.
+   another move and repeat. Before one relaunch, make a recognized no-op on one
+   axis, then after relaunch trigger growth without replacing that axis history;
+   confirm growth uses the saved no-op direction. This is a real relaunch, not
+   hot reload.
 7. **Game over:** naturally fill a run until no slide or merge remains. Confirm
    `Game over`, the final score, an understandable final board, and no further
    move response. Confirm New game starts immediately without an unfinished-run
@@ -223,7 +231,9 @@ confirm:
 
 1. immediately after each growth, full-board overview shows every row, column,
    cell, and outer edge with no clipping or blank cells, including the complete
-   8×8 board after 128;
+   8×8 board after 128; for every naturally reached prepend combination, verify
+   retained corner and stationary tiles plus both merge participants visibly
+   shift to the correct final coordinates rather than showing a top-left slice;
 2. the header, score/New game, current status, full board, and obvious Controls
    action remain on one non-scrolling screen at default text size;
 3. repeated one-finger up/down and left/right swipes beginning on the board
@@ -461,7 +471,7 @@ Use one result per environment where the row applies.
 | Fresh game                       | 2×2, two distinct 2s, score 0, `k=1`, milestone shown                                                                                                                                                                          | Screenshot and brief observation                                                  |
 | `k` settings                     | Every 1–10 value reachable; bounds disabled; 5–10 warning; active `k` immutable                                                                                                                                                | Screenshots at bounds/warning and notes                                           |
 | Movement / merges / score        | Four directions work; legal/no-op spawn behavior; equal tiles merge once; exact score delta                                                                                                                                    | Before/after capture and action sequence                                          |
-| Growth                           | At `k=1`, first merged 4/8/16 yields exactly 3×3/4×4/5×5                                                                                                                                                                       | Milestone screenshots/video and move notes                                        |
+| Growth                           | At `k=1`, milestones grow at the exact sizes; rows/columns appear opposite saved latest axis directions, including observed prepend combinations, with retained tiles and no blanks                                            | Milestone screenshots/video, direction sequence, and exact-cell notes             |
 | Game over                        | Blocked board announces final score, rejects moves, and starts fresh without unfinished warning                                                                                                                                | Final/fresh screenshots and observation                                           |
 | Save / resume                    | Exact run returns after background and true relaunch                                                                                                                                                                           | Before/after captures and relaunch steps                                          |
 | Recovery behavior                | Automated tests cover valid, corrupt, newer, read/write/clear failure behavior without silent destruction                                                                                                                      | Named test command/output; live result separately Not run unless safely exercised |
