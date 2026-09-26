@@ -75,6 +75,42 @@ size in response to individual merges.
 | 5          | merged 64 (`H=6`) → 3×3    | merged 2048 (`H=11`) → 4×4    | merged 65536 (`H=16`) → 5×5      |
 | 10         | merged 2048 (`H=11`) → 3×3 | merged 2097152 (`H=21`) → 4×4 | merged 2147483648 (`H=31`) → 5×5 |
 
+### Tile palette (P01)
+
+The tile palette is the fixed, maintainer-specified P01 mapping: an sRGB
+progression from cream through amber, terracotta, berry, and violet to indigo.
+Colors are looked up by exponent rather than interpolated at runtime.
+
+| Exponent | Displayed value | Background | Text      |
+| -------: | --------------: | :--------- | :-------- |
+|        1 |               2 | `#EFE3C3`  | `#111111` |
+|        2 |               4 | `#EED6AC`  | `#111111` |
+|        3 |               8 | `#ECC995`  | `#111111` |
+|        4 |              16 | `#EABC7D`  | `#111111` |
+|        5 |              32 | `#E7AF64`  | `#111111` |
+|        6 |              64 | `#E3A064`  | `#111111` |
+|        7 |             128 | `#DE9064`  | `#111111` |
+|        8 |             256 | `#D98063`  | `#111111` |
+|        9 |             512 | `#D37062`  | `#111111` |
+|       10 |            1024 | `#C76869`  | `#111111` |
+|       11 |            2048 | `#BB606F`  | `#111111` |
+|       12 |            4096 | `#AF5874`  | `#FFFFFF` |
+|       13 |            8192 | `#A44F78`  | `#FFFFFF` |
+|       14 |           16384 | `#944F7B`  | `#FFFFFF` |
+|       15 |           32768 | `#844E7E`  | `#FFFFFF` |
+|       16 |           65536 | `#744C80`  | `#FFFFFF` |
+|       17 |          131072 | `#644A82`  | `#FFFFFF` |
+|       18 |          262144 | `#544275`  | `#FFFFFF` |
+|       19 |          524288 | `#443B68`  | `#FFFFFF` |
+|       20 |         1048576 | `#34335C`  | `#FFFFFF` |
+
+Empty cells remain `#D8CEC0` and have no numeric label. Exponents above 20 use
+exponent 20's background and text colors while retaining and displaying their
+exact values; the palette introduces no wrapping, value cap, or game-over
+condition. Every listed text/background pair has at least 4.5:1 calculated
+contrast. Numeric values and accessible descriptions remain the source of tile
+meaning; color is supplementary.
+
 ## Proposed design decisions
 
 The following resolve behavior not supplied in the original requirements. They
