@@ -170,6 +170,41 @@ values. Honor reduced-motion preferences: replace movement/merge/growth
 transitions with immediate state updates or restrained fades, and never make
 animation necessary to understand the resulting board.
 
+### Tile palette
+
+The tile presentation uses this fixed sRGB palette. This is a proposed design
+decision: color supplements the exact numeric value and accessible description;
+it does not replace either.
+
+| Exponent | Displayed value | Background | Text      |
+| -------: | --------------: | ---------- | --------- |
+|        1 |               2 | `#EFE3C3`  | `#111111` |
+|        2 |               4 | `#EED6AC`  | `#111111` |
+|        3 |               8 | `#ECC995`  | `#111111` |
+|        4 |              16 | `#EABC7D`  | `#111111` |
+|        5 |              32 | `#E7AF64`  | `#111111` |
+|        6 |              64 | `#E3A064`  | `#111111` |
+|        7 |             128 | `#DE9064`  | `#111111` |
+|        8 |             256 | `#D98063`  | `#111111` |
+|        9 |             512 | `#D37062`  | `#111111` |
+|       10 |            1024 | `#C76869`  | `#111111` |
+|       11 |            2048 | `#BB606F`  | `#111111` |
+|       12 |            4096 | `#AF5874`  | `#FFFFFF` |
+|       13 |            8192 | `#A44F78`  | `#FFFFFF` |
+|       14 |           16384 | `#944F7B`  | `#FFFFFF` |
+|       15 |           32768 | `#844E7E`  | `#FFFFFF` |
+|       16 |           65536 | `#744C80`  | `#FFFFFF` |
+|       17 |          131072 | `#644A82`  | `#FFFFFF` |
+|       18 |          262144 | `#544275`  | `#FFFFFF` |
+|       19 |          524288 | `#443B68`  | `#FFFFFF` |
+|       20 |         1048576 | `#34335C`  | `#FFFFFF` |
+
+Empty cells remain `#D8CEC0` and have no numeric label. Exponents above 20 use
+exponent 20's background and text colors while retaining their exact displayed
+values. The palette never wraps and introduces no value cap or game-over rule.
+Every listed text/background pair has calculated sRGB contrast of at least
+4.5:1.
+
 ### Increasingly large boards on phones
 
 The board has two intentional presentation scales. **Full-board overview** is
