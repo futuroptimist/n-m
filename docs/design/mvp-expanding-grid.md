@@ -171,8 +171,9 @@ transitions with immediate state updates or restrained fades, and never make
 animation necessary to understand the resulting board.
 
 The tile palette is a fixed sRGB progression from cream through amber,
-terracotta, berry, and violet to indigo. This is a proposed presentation
-decision; colors are looked up by exponent rather than interpolated at runtime.
+terracotta, berry, and violet to indigo. This is a maintainer-approved
+presentation requirement; colors are looked up by exponent rather than
+interpolated at runtime.
 
 | Exponent | Displayed value | Background | Text      |
 | -------: | --------------: | :--------- | :-------- |
