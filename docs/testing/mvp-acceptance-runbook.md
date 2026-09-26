@@ -112,6 +112,12 @@ rather than writing one overall result.
    `Game over`, the final score, an understandable final board, and no further
    move response. Confirm New game starts immediately without an unfinished-run
    warning. A full but mergeable board must remain playable if encountered.
+8. **Tile presentation:** during ordinary slides and merges, confirm settled
+   tiles and their moving overlays use the same color for the same value, all
+   numeric values remain readable, and empty cells stay neutral with no label.
+   After moves, growth, a new game, and resume, confirm no occupied cell appears
+   blank. Record only colors actually reached in play; automated palette tests
+   cover the complete exponent 1–20 mapping and contrast calculations.
 
 Recovery from corrupt, invalid, unreadable, and newer-version saves is covered
 by deterministic storage tests in `npm run check`. Record that evidence as
