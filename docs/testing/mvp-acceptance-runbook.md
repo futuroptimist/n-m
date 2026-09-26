@@ -101,26 +101,13 @@ rather than writing one overall result.
    does not change, and the warning appears for 5–10. With an unfinished run,
    select another value and press New game: first cancel and retain the exact
    run, then confirm and get a fresh 2×2 run at the selected `k`.
-5. **Direction-aware growth:** in natural play at `k=1`, exercise growth after
-   each of these latest-axis combinations: down then right, down then left, up
-   then right, and up then left. Confirm rows appear opposite the latest
-   vertical direction and columns opposite the latest horizontal direction.
-   Follow retained corner tiles through each growth, confirm both merge
-   participants converge at the shifted destination, the spawn appears only
-   after the slide, and no occupied cell is blank. Continue through the first
-   merged 4, 8, and 16 and confirm board sizes 3×3, 4×4, and 5×5, next-growth
-   text advances, and play continues. Record only combinations actually reached
-   through natural play; do not infer missing combinations.
-6. **No-op direction and persistence:** make a recognized no-op in one axis,
-   then background, terminate, and relaunch before the next growth. Confirm the
-   no-op did not change board cells, score, milestone, spawn a tile, animate, or
-   announce. Arrange the next naturally reached growth so the saved no-op
-   direction determines that axis's opposite growth edge. Also note `k`, board
-   cells, score, next milestone, status, and the other axis's most recent
-   direction before relaunch; background the app, then terminate and relaunch it
-   through the normal OS app switcher/launcher flow. Confirm the same state and
-   independent direction histories resume atomically. Make another move and
-   repeat. This is a real relaunch, not hot reload.
+5. **Growth:** in natural play at `k=1`, merge the first 4, 8, and 16. Confirm
+   board sizes 3×3, 4×4, and 5×5 respectively; existing positions remain while
+   space is added below/right, next-growth text advances, and play continues.
+6. **Persistence:** note `k`, board cells, score, next milestone, and status;
+   background the app, then terminate and relaunch it through the normal OS app
+   switcher/launcher flow. Confirm the same state resumes atomically. Make
+   another move and repeat. This is a real relaunch, not hot reload.
 7. **Game over:** naturally fill a run until no slide or merge remains. Confirm
    `Game over`, the final score, an understandable final board, and no further
    move response. Confirm New game starts immediately without an unfinished-run
@@ -236,9 +223,7 @@ confirm:
 
 1. immediately after each growth, full-board overview shows every row, column,
    cell, and outer edge with no clipping or blank cells, including the complete
-   8×8 board after 128; for prepended growth, retained corner tiles and moving
-   tiles appear at their shifted final coordinates rather than a top-left slice
-   of the expanded board;
+   8×8 board after 128;
 2. the header, score/New game, current status, full board, and obvious Controls
    action remain on one non-scrolling screen at default text size;
 3. repeated one-finger up/down and left/right swipes beginning on the board

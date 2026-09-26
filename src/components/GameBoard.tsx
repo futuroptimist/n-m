@@ -97,6 +97,9 @@ export function GameBoard({
   const onMoveRef = useRef(onMove);
 
   const presentationSideLength = game.sideLength;
+  // Gesture callbacks outlive individual renders, so keep their geometry on
+  // the same board size that this render presents, including during growth.
+  geometry.current.sideLength = presentationSideLength;
   const boardGeometry = fittedBoardGeometry(
     presentationSideLength,
     viewportSize,

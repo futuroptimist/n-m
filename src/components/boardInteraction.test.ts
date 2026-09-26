@@ -93,6 +93,32 @@ test('normalizes full-board fit and clamps enlarged viewports', () => {
   });
 });
 
+test('normalizes zoom and clamping against the grown board size', () => {
+  const viewportSize = 300;
+  const grownSideLength = 15;
+  const normalized = normalizeViewport(
+    Number.POSITIVE_INFINITY,
+    { x: Number.NEGATIVE_INFINITY, y: 20 },
+    grownSideLength,
+    viewportSize,
+  );
+  const grownMaximumZoom = maximumZoom(grownSideLength, viewportSize);
+  const grownGeometry = fittedBoardGeometry(grownSideLength, viewportSize);
+  const grownContentSize = boardContentSize(
+    grownSideLength,
+    grownGeometry.tileSize * grownMaximumZoom,
+    grownGeometry.gutter * grownMaximumZoom,
+    grownGeometry.padding * grownMaximumZoom,
+  );
+
+  assert.equal(normalized.zoom, grownMaximumZoom);
+  assert.deepEqual(normalized.position, {
+    x: viewportSize - grownContentSize,
+    y: 0,
+  });
+  assert.notEqual(grownMaximumZoom, maximumZoom(14, viewportSize));
+});
+
 test('plans deterministic tile paths including duplicate-value merges', () => {
   assert.deepEqual(
     planTileMotion(
