@@ -51,6 +51,9 @@ easier.
    to 4×4, and the first merged 16 to 5×5.
 8. With `k=2`, the first merged 8 expands the board to 3×3, the first merged 32
    to 4×4, and the first merged 128 to 5×5.
+9. Growth inserts each new row opposite the most recent vertical gameplay
+   direction and each new column opposite the most recent horizontal gameplay
+   direction. Track the two axes independently and retain them across restart.
 
 ### Mathematical growth rule
 
@@ -134,8 +137,11 @@ are proposed MVP defaults, not maintainer-originated requirements.
   merge at most once in that move.
 - Score each merge by adding the resulting tile's displayed value.
 - A move is successful only when at least one tile changes coordinate or merges.
-  An unchanged move does not spawn a tile, consume randomness, change score, or
-  expand the board.
+  Every recognized cardinal move records that direction on its axis, including
+  an unchanged move and the move that triggers growth. An unchanged move changes
+  only that history: it does not spawn a tile, consume randomness, change score,
+  expand the board, animate, or announce. Rejected input and tap, pan, and pinch
+  gestures do not update history.
 - For a successful move, resolve every slide and merge on the original board;
   update `H` from all merge results; derive and apply the new board size; then
   spawn exactly one tile in a uniformly selected empty cell. The spawned tile is
@@ -143,8 +149,12 @@ are proposed MVP defaults, not maintainer-originated requirements.
   probability.
 - Spawned tiles never update `H` or directly trigger growth. A spawned 4 affects
   `H` only after it participates in a merge that produces a later result.
-- Preserve all existing coordinates when growing: append empty rows below and
-  empty columns to the right.
+- Insert rows opposite the latest vertical direction: after `down`, prepend at
+  row 0; after `up`, append at the final row. Insert columns opposite the latest
+  horizontal direction: after `right`, prepend at column 0; after `left`, append
+  at the final column. Unknown history retains the former bottom/right default.
+  For a move crossing multiple thresholds, insert every required row and column
+  on those same selected edges. Shift existing coordinates when prepending.
 - A move may cross multiple thresholds. Derive the final size without limiting
   growth to one expansion per move. For example, at `k=1`, merging two spawned
   4s into the run's first 8 can take a 2×2 board directly to 4×4.
@@ -282,7 +292,9 @@ A conceptual persisted state is:
   board: (null | exponent)[][],
   highestMergedExponent,
   score,
-  status
+  status,
+  lastHorizontalDirection,
+  lastVerticalDirection
 }
 ```
 
@@ -301,7 +313,9 @@ does not directly encode BigInt. Validate canonical decimal strings on load.
 Likewise, serialize exponents as JSON numbers only while they remain safe
 integers; reject impossible or unsafe state rather than rounding it.
 
-Begin persistence at `schemaVersion: 1`. Route reads through version validation
+Persistence began at `schemaVersion: 1`; schema 2 adds nullable horizontal and
+vertical direction history. Migrate valid schema-1 saves with both axes unknown,
+preserving every former gameplay field. Route reads through version validation
 and explicit future migrations; write the newest version. Unknown newer versions
 must not be guessed at or overwritten without confirmation.
 
@@ -364,8 +378,10 @@ tests. They are not placeholder tests for this documentation-only phase.
 | Spawned versus merged 4 | Spawn a 4, then separately merge two 2s into 4                     | Spawn alone leaves `H=1`; merged 4 sets `H=2` and grows at `k=1`.                                                                      |
 | Multiple merges         | Move `[2,2,4,4]` toward the first cell                             | Result is `[4,8,…]`, score increases by 12, and both results can update `H`.                                                           |
 | No chain merge          | Move `[2,2,4,…]` toward the first cell                             | Result starts `[4,4,…]`, not `[8,…]`; a newly merged tile merges at most once.                                                         |
-| No-op                   | Move toward an already settled edge with no merge                  | State and score are unchanged and no RNG sample, spawn, or growth occurs.                                                              |
-| Order and coordinates   | A successful merge crosses a threshold                             | Resolve original-board merges, append bottom/right space, then spawn; old coordinates are preserved and spawn may use new empty cells. |
+| No-op                   | Move toward an already settled edge with no merge                  | Only that axis's direction history changes; board, score, milestone, RNG, animation, and announcements remain unchanged.               |
+| Order and coordinates   | A successful merge crosses a threshold after cardinal moves        | Resolve the original board, insert opposite each axis history (bottom/right when unknown), shift coordinates, then spawn exactly once. |
+| Direction combinations  | Grow after down/right, down/left, up/right, and up/left history    | New space appears top/left, top/right, bottom/left, and bottom/right respectively; retained and animated tiles stay aligned.           |
+| Direction persistence   | Record a no-op direction, relaunch, then trigger growth            | The no-op direction survives and selects the corresponding opposite growth edge.                                                       |
 | Full but mergeable      | Fill board with at least one orthogonally adjacent equal pair      | Not game over because a merge move exists.                                                                                             |
 | Full and blocked        | Fill board with no legal slide or orthogonally adjacent equal pair | Game over is set after the move/growth/spawn phase.                                                                                    |
 | Restore                 | Save a run with nondefault `k`, `H`, board, and score, then load   | Exact active `k`, milestone, dimensions, exponent cells, score, and status return; prior milestones do not regrow.                     |
@@ -383,5 +399,5 @@ tests. They are not placeholder tests for this documentation-only phase.
 | Large values and score | Store exponents and exact BigInt-derived decimal score strings; avoid bitwise Number arithmetic.                                               | Choose compact visual notation and screen-reader phrasing for extremely large exponents.        |
 | Persistence failures   | Version and validate saves; fail safely to a recoverable new-game path.                                                                        | Decide whether invalid saves can be exported for diagnostics without collecting analytics.      |
 | New-game confirmation  | Active `k` is immutable; confirm replacement of an unfinished run.                                                                             | Define “unfinished” across game-over and manually abandoned states during UI work.              |
-| Board growth placement | Add rows below and columns right, retaining coordinates.                                                                                       | Ensure asymmetric visual growth feels understandable in animation and reduced-motion modes.     |
+| Board growth placement | Insert opposite independently retained axis directions; unknown axes default to bottom/right.                                                  | Verify prepended stationary/moving tiles, merge participants, spawns, and reduced motion live.  |
 | Future modes           | Maintain clean engine/UI/storage boundaries only.                                                                                              | Add abstractions only after a second mode has concrete requirements.                            |
