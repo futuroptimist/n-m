@@ -5,10 +5,12 @@ import {
   type Board,
   type GameState,
   type GameStatus,
+  type HorizontalDirection,
+  type VerticalDirection,
 } from '../engine';
 
 export const GAME_STORAGE_KEY = 'n-m.current-run';
-export const SAVE_SCHEMA_VERSION = 1 as const;
+export const SAVE_SCHEMA_VERSION = 2 as const;
 
 export interface AsyncKeyValueStore {
   getItem(key: string): Promise<string | null>;
@@ -24,13 +26,19 @@ export type LoadResult =
   | { readonly type: 'recovery'; readonly reason: RecoveryReason };
 
 interface SavedGameV1 {
-  readonly schemaVersion: typeof SAVE_SCHEMA_VERSION;
+  readonly schemaVersion: 1;
   readonly activeK: number;
   readonly sideLength: number;
   readonly board: Board;
   readonly highestCreatedExponent: number;
   readonly score: string;
   readonly status: GameStatus;
+}
+
+interface SavedGameV2 extends Omit<SavedGameV1, 'schemaVersion'> {
+  readonly schemaVersion: typeof SAVE_SCHEMA_VERSION;
+  readonly lastHorizontalDirection: HorizontalDirection | null;
+  readonly lastVerticalDirection: VerticalDirection | null;
 }
 
 export class StorageOperationError extends Error {
@@ -49,7 +57,7 @@ export class StorageOperationError extends Error {
 export function serializeGame(game: GameState): string {
   // Deserializing our own representation applies the same validation used for
   // untrusted stored data and prevents writing an invalid engine state.
-  const saved: SavedGameV1 = {
+  const saved: SavedGameV2 = {
     schemaVersion: SAVE_SCHEMA_VERSION,
     activeK: game.activeK,
     sideLength: game.sideLength,
@@ -57,6 +65,8 @@ export function serializeGame(game: GameState): string {
     highestCreatedExponent: game.highestCreatedExponent,
     score: game.score.toString(10),
     status: game.status,
+    lastHorizontalDirection: game.lastHorizontalDirection,
+    lastVerticalDirection: game.lastVerticalDirection,
   };
   const serialized = JSON.stringify(saved);
   deserializeGame(serialized);
@@ -66,11 +76,30 @@ export function serializeGame(game: GameState): string {
 export function deserializeGame(serialized: string): GameState {
   const value: unknown = JSON.parse(serialized);
   if (!isRecord(value)) throw new Error('Saved game must be an object');
-  if (value.schemaVersion !== SAVE_SCHEMA_VERSION) {
+  if (
+    value.schemaVersion !== 1 &&
+    value.schemaVersion !== SAVE_SCHEMA_VERSION
+  ) {
     throw new Error('Unsupported save schema version');
   }
 
   const { activeK, sideLength, highestCreatedExponent, score, status } = value;
+  const lastHorizontalDirection =
+    value.schemaVersion === 1 ? null : value.lastHorizontalDirection;
+  const lastVerticalDirection =
+    value.schemaVersion === 1 ? null : value.lastVerticalDirection;
+  if (
+    lastHorizontalDirection !== null &&
+    lastHorizontalDirection !== 'left' &&
+    lastHorizontalDirection !== 'right'
+  )
+    throw new Error('Invalid horizontal direction history');
+  if (
+    lastVerticalDirection !== null &&
+    lastVerticalDirection !== 'up' &&
+    lastVerticalDirection !== 'down'
+  )
+    throw new Error('Invalid vertical direction history');
   if (
     typeof activeK !== 'number' ||
     !Number.isInteger(activeK) ||
@@ -134,6 +163,8 @@ export function deserializeGame(serialized: string): GameState {
     highestCreatedExponent: highestCreatedExponent as number,
     score: BigInt(score),
     status,
+    lastHorizontalDirection,
+    lastVerticalDirection,
   };
 }
 

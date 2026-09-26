@@ -51,6 +51,11 @@ easier.
    to 4×4, and the first merged 16 to 5×5.
 8. With `k=2`, the first merged 8 expands the board to 3×3, the first merged 32
    to 4×4, and the first merged 128 to 5×5.
+9. Remember the latest recognized horizontal and vertical gameplay directions
+   independently, including no-op moves. On growth, add each axis's new space
+   opposite its remembered direction: down prepends rows, up appends rows, right
+   prepends columns, and left appends columns. An axis with no history retains
+   the previous bottom/right append behavior.
 
 ### Mathematical growth rule
 
@@ -143,8 +148,10 @@ are proposed MVP defaults, not maintainer-originated requirements.
   probability.
 - Spawned tiles never update `H` or directly trigger growth. A spawned 4 affects
   `H` only after it participates in a merge that produces a later result.
-- Preserve all existing coordinates when growing: append empty rows below and
-  empty columns to the right.
+- After resolving the move on the original board, insert every required row and
+  column at the edge opposite the latest direction for that axis. Prepending
+  shifts resolved tiles by the number of inserted rows or columns. Unknown
+  vertical and horizontal histories append below and right, respectively.
 - A move may cross multiple thresholds. Derive the final size without limiting
   growth to one expansion per move. For example, at `k=1`, merging two spawned
   4s into the run's first 8 can take a 2×2 board directly to 4×4.
@@ -156,10 +163,12 @@ are proposed MVP defaults, not maintainer-originated requirements.
 
 Save and resume the current run locally. At minimum, persist the active `k`,
 board exponents and dimensions, score, historical merge milestone `H`, run/game-
-over status, and a schema version. Save after each completed state transition
-and when app lifecycle events allow; restoration must be atomic from the user's
-perspective. A corrupt, incompatible, or invalid save must fail safely and offer
-a new game rather than partially restoring state.
+over status, latest horizontal and vertical directions, and a schema version.
+Schema-v1 saves migrate with both directions unknown; schema-v2 saves validate
+and restore both nullable direction fields. Save after each completed state
+transition and when app lifecycle events allow; restoration must be atomic from
+the user's perspective. A corrupt, incompatible, or invalid save must fail
+safely and offer a new game rather than partially restoring state.
 
 ## Important balancing limitation
 
@@ -354,34 +363,34 @@ Do not create empty directories now.
 These cases specify future deterministic engine, persistence, and interaction
 tests. They are not placeholder tests for this documentation-only phase.
 
-| Area                    | Setup/action                                                       | Expected behavior                                                                                                                      |
-| ----------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Exact `k=1` sequence    | Merge the run's first 4, 8, then 16                                | Sizes are exactly 3×3, 4×4, then 5×5; `H` is 2, 3, then 4.                                                                             |
-| Exact `k=2` sequence    | Merge the run's first 8, 32, then 128                              | Sizes are exactly 3×3, 4×4, then 5×5; intermediate 4, 16, and 64 do not expand.                                                        |
-| Below threshold         | At `k=2`, merge a first 4                                          | `H` becomes 2, board remains 2×2, and next milestone is 8.                                                                             |
-| Repeated milestone      | Recreate a tile at or below historical `H`                         | Historical `H` and board size do not increase again.                                                                                   |
-| Multiple thresholds     | At `k=1` on 2×2, merge two spawned 4s into first 8                 | `H=3` and board grows directly to 4×4 in that move.                                                                                    |
-| Spawned versus merged 4 | Spawn a 4, then separately merge two 2s into 4                     | Spawn alone leaves `H=1`; merged 4 sets `H=2` and grows at `k=1`.                                                                      |
-| Multiple merges         | Move `[2,2,4,4]` toward the first cell                             | Result is `[4,8,…]`, score increases by 12, and both results can update `H`.                                                           |
-| No chain merge          | Move `[2,2,4,…]` toward the first cell                             | Result starts `[4,4,…]`, not `[8,…]`; a newly merged tile merges at most once.                                                         |
-| No-op                   | Move toward an already settled edge with no merge                  | State and score are unchanged and no RNG sample, spawn, or growth occurs.                                                              |
-| Order and coordinates   | A successful merge crosses a threshold                             | Resolve original-board merges, append bottom/right space, then spawn; old coordinates are preserved and spawn may use new empty cells. |
-| Full but mergeable      | Fill board with at least one orthogonally adjacent equal pair      | Not game over because a merge move exists.                                                                                             |
-| Full and blocked        | Fill board with no legal slide or orthogonally adjacent equal pair | Game over is set after the move/growth/spawn phase.                                                                                    |
-| Restore                 | Save a run with nondefault `k`, `H`, board, and score, then load   | Exact active `k`, milestone, dimensions, exponent cells, score, and status return; prior milestones do not regrow.                     |
-| Change `k`              | Select a new `k` while a run is active                             | Active run stays unchanged until confirmed replacement; new run uses selected `k`.                                                     |
-| Setting bounds          | Use decrement at 1 and increment at 10                             | Controls are disabled at bounds and no out-of-range run can start.                                                                     |
-| High-`k` limitation     | Start any `k=5–10` run with standard 2/4 spawning                  | Help warns that first growth is unreachable on fixed 2×2; rules and range remain unchanged.                                            |
+| Area                    | Setup/action                                                       | Expected behavior                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact `k=1` sequence    | Merge the run's first 4, 8, then 16                                | Sizes are exactly 3×3, 4×4, then 5×5; `H` is 2, 3, then 4.                                                                                                                 |
+| Exact `k=2` sequence    | Merge the run's first 8, 32, then 128                              | Sizes are exactly 3×3, 4×4, then 5×5; intermediate 4, 16, and 64 do not expand.                                                                                            |
+| Below threshold         | At `k=2`, merge a first 4                                          | `H` becomes 2, board remains 2×2, and next milestone is 8.                                                                                                                 |
+| Repeated milestone      | Recreate a tile at or below historical `H`                         | Historical `H` and board size do not increase again.                                                                                                                       |
+| Multiple thresholds     | At `k=1` on 2×2, merge two spawned 4s into first 8                 | `H=3` and board grows directly to 4×4 in that move.                                                                                                                        |
+| Spawned versus merged 4 | Spawn a 4, then separately merge two 2s into 4                     | Spawn alone leaves `H=1`; merged 4 sets `H=2` and grows at `k=1`.                                                                                                          |
+| Multiple merges         | Move `[2,2,4,4]` toward the first cell                             | Result is `[4,8,…]`, score increases by 12, and both results can update `H`.                                                                                               |
+| No chain merge          | Move `[2,2,4,…]` toward the first cell                             | Result starts `[4,4,…]`, not `[8,…]`; a newly merged tile merges at most once.                                                                                             |
+| No-op                   | Move toward an already settled edge with no merge                  | Only that axis's latest direction changes and persists; board, score, milestone, RNG, animation, and announcements remain unchanged.                                       |
+| Order and coordinates   | A successful merge crosses a threshold                             | Resolve on the original board, insert opposite the latest directions (default bottom/right), shift coordinates when prepending, then spawn once, including into new space. |
+| Full but mergeable      | Fill board with at least one orthogonally adjacent equal pair      | Not game over because a merge move exists.                                                                                                                                 |
+| Full and blocked        | Fill board with no legal slide or orthogonally adjacent equal pair | Game over is set after the move/growth/spawn phase.                                                                                                                        |
+| Restore                 | Save a run with nondefault `k`, `H`, board, and score, then load   | Exact active `k`, milestone, dimensions, exponent cells, score, and status return; prior milestones do not regrow.                                                         |
+| Change `k`              | Select a new `k` while a run is active                             | Active run stays unchanged until confirmed replacement; new run uses selected `k`.                                                                                         |
+| Setting bounds          | Use decrement at 1 and increment at 10                             | Controls are disabled at bounds and no out-of-range run can start.                                                                                                         |
+| High-`k` limitation     | Start any `k=5–10` run with standard 2/4 spawning                  | Help warns that first growth is unreachable on fixed 2×2; rules and range remain unchanged.                                                                                |
 
 ## Risks, decisions, and open questions
 
-| Topic                  | Current position                                                                                                                               | Follow-up question or risk                                                                      |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| High-`k` reachability  | Preserve 1–10 and disclose that 5–10 cannot expand under proposed defaults.                                                                    | Is a post-MVP balance experiment desirable, and how will existing saves be handled?             |
-| Large-board usability  | Default to continuous full-board overview; offer touch-friendly enlargement, pan/zoom, and accessible move/inspection controls; no hidden cap. | Device checks must validate navigation gestures, performance, and screen-reader representation. |
-| Randomness             | Inject samples; use uniform empty-cell selection and 90/10 tile choice.                                                                        | Define sample consumption order precisely in engine tests so refactors remain reproducible.     |
-| Large values and score | Store exponents and exact BigInt-derived decimal score strings; avoid bitwise Number arithmetic.                                               | Choose compact visual notation and screen-reader phrasing for extremely large exponents.        |
-| Persistence failures   | Version and validate saves; fail safely to a recoverable new-game path.                                                                        | Decide whether invalid saves can be exported for diagnostics without collecting analytics.      |
-| New-game confirmation  | Active `k` is immutable; confirm replacement of an unfinished run.                                                                             | Define “unfinished” across game-over and manually abandoned states during UI work.              |
-| Board growth placement | Add rows below and columns right, retaining coordinates.                                                                                       | Ensure asymmetric visual growth feels understandable in animation and reduced-motion modes.     |
-| Future modes           | Maintain clean engine/UI/storage boundaries only.                                                                                              | Add abstractions only after a second mode has concrete requirements.                            |
+| Topic                  | Current position                                                                                                                               | Follow-up question or risk                                                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| High-`k` reachability  | Preserve 1–10 and disclose that 5–10 cannot expand under proposed defaults.                                                                    | Is a post-MVP balance experiment desirable, and how will existing saves be handled?                                                  |
+| Large-board usability  | Default to continuous full-board overview; offer touch-friendly enlargement, pan/zoom, and accessible move/inspection controls; no hidden cap. | Device checks must validate navigation gestures, performance, and screen-reader representation.                                      |
+| Randomness             | Inject samples; use uniform empty-cell selection and 90/10 tile choice.                                                                        | Define sample consumption order precisely in engine tests so refactors remain reproducible.                                          |
+| Large values and score | Store exponents and exact BigInt-derived decimal score strings; avoid bitwise Number arithmetic.                                               | Choose compact visual notation and screen-reader phrasing for extremely large exponents.                                             |
+| Persistence failures   | Version and validate saves; fail safely to a recoverable new-game path.                                                                        | Decide whether invalid saves can be exported for diagnostics without collecting analytics.                                           |
+| New-game confirmation  | Active `k` is immutable; confirm replacement of an unfinished run.                                                                             | Define “unfinished” across game-over and manually abandoned states during UI work.                                                   |
+| Board growth placement | Insert opposite independently remembered directions; unknown axes append bottom/right.                                                         | Project stationary tiles, both merge participants, and spawn coordinates through prepend offsets; verify all four edge combinations. |
+| Future modes           | Maintain clean engine/UI/storage boundaries only.                                                                                              | Add abstractions only after a second mode has concrete requirements.                                                                 |
