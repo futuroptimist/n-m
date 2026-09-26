@@ -28,7 +28,7 @@ import {
   type GameState,
   type MoveResult,
 } from '../engine';
-import { colors, spacing } from '../theme';
+import { colors, spacing, tileColors } from '../theme';
 import {
   FIT_ZOOM,
   TILE_SLIDE_DURATION_MS,
@@ -58,12 +58,6 @@ interface GameBoardProps {
   onMove: (direction: Direction) => void;
   onPendingKChange: (k: number) => void;
   pendingK: number;
-}
-
-function tileBackground(exponent: number): string {
-  if (exponent <= 2) return colors.tileLight;
-  if (exponent <= 5) return colors.tileMid;
-  return colors.tileDark;
 }
 
 function touchDistance(event: GestureResponderEvent): number | null {
@@ -550,13 +544,13 @@ function Tile({
   style?: object;
 }) {
   const value = exponent === null ? null : tileValue(exponent).toString();
+  const palette = exponent === null ? null : tileColors(exponent);
   return (
     <Animated.View
       style={[
         styles.cell,
         {
-          backgroundColor:
-            exponent === null ? colors.empty : tileBackground(exponent),
+          backgroundColor: palette?.background ?? colors.empty,
           height: size,
           margin: gutter / 2,
           width: size,
@@ -572,8 +566,7 @@ function Tile({
           style={[
             styles.tileValue,
             {
-              color:
-                exponent !== null && exponent > 5 ? colors.white : colors.ink,
+              color: palette?.text,
               fontSize: Math.max(8, Math.min(30, size / 3)),
             },
           ]}
