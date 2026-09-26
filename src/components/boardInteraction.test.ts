@@ -147,6 +147,8 @@ test('presents an engine merge with distinct motion and reveal identities', () =
     highestCreatedExponent: 1,
     score: 0n,
     status: 'active',
+    lastHorizontalDirection: null,
+    lastVerticalDirection: null,
   };
   const random = [0, 0][Symbol.iterator]();
   const result = move(game, 'left', () => random.next().value ?? 0);
@@ -197,6 +199,73 @@ test('presents an engine merge with distinct motion and reveal identities', () =
   assert.deepEqual(reducedMotion, revealed);
 });
 
+test('presents prepended growth at shifted final coordinates for every edge combination', () => {
+  for (const [vertical, horizontal, rowOffset, columnOffset] of [
+    ['down', 'right', 1, 1],
+    ['down', 'left', 1, 0],
+    ['up', 'right', 0, 1],
+    ['up', 'left', 0, 0],
+  ] as const) {
+    const stationaryColumn = horizontal === 'right' ? 1 : 0;
+    const game: GameState = {
+      schemaVersion: ENGINE_SCHEMA_VERSION,
+      activeK: 1,
+      sideLength: 2,
+      board: [[1, 1], stationaryColumn === 0 ? [2, null] : [null, 2]],
+      highestCreatedExponent: 1,
+      score: 0n,
+      status: 'active',
+      lastHorizontalDirection: horizontal,
+      lastVerticalDirection: vertical,
+    };
+    const samples = [0, 0.999][Symbol.iterator]();
+    const result = move(game, horizontal, () => samples.next().value ?? 0);
+    const sliding = planBoardPresentation(
+      result.state.board,
+      result.transitions,
+      true,
+    );
+    const settled = planBoardPresentation(
+      result.state.board,
+      result.transitions,
+      false,
+    );
+    const destinationColumn = horizontal === 'right' ? columnOffset + 1 : 0;
+    const destination = sliding.cells.find(
+      ({ row, column }) => row === rowOffset && column === destinationColumn,
+    );
+    const stationary = sliding.cells.find(
+      ({ row, column }) =>
+        row === rowOffset + 1 && column === stationaryColumn + columnOffset,
+    );
+    const spawn = result.events.find((event) => event.type === 'spawn');
+
+    assert.equal(sliding.cells.length, 9);
+    assert.equal(destination?.exponent, 2);
+    assert.equal(destination?.visible, false);
+    assert.equal(stationary?.exponent, 2);
+    assert.equal(stationary?.visible, true);
+    assert.equal(result.transitions.filter(({ merges }) => merges).length, 2);
+    assert.ok(
+      result.transitions.every(
+        ({ from, to }) =>
+          from.row >= rowOffset &&
+          from.column >= columnOffset &&
+          to.row >= rowOffset &&
+          to.column >= columnOffset,
+      ),
+    );
+    assert.ok(spawn?.type === 'spawn');
+    assert.equal(result.state.board[spawn.row][spawn.column], spawn.exponent);
+    assert.notEqual(
+      destination?.key,
+      settled.cells.find(
+        ({ row, column }) => row === rowOffset && column === destinationColumn,
+      )?.key,
+    );
+  }
+});
+
 test('uses animation durations that are exactly half their original values', () => {
   assert.equal(TILE_SLIDE_DURATION_MS, 150 / 2);
   assert.equal(TILE_SPAWN_DURATION_MS, 100 / 2);
@@ -241,13 +310,25 @@ test('announcements prefer game over, then growth, then merge score', () => {
   assert.equal(
     selectMoveAnnouncement([
       { type: 'merge', exponent: 2, value: 4n },
-      { type: 'growth', from: 2, to: 3 },
+      {
+        type: 'growth',
+        from: 2,
+        to: 3,
+        rowOffset: 0,
+        columnOffset: 0,
+      },
     ]),
     'Board grew from 2 by 2 to 3 by 3. Merge scored 4 points',
   );
   assert.equal(
     selectMoveAnnouncement([
-      { type: 'growth', from: 2, to: 3 },
+      {
+        type: 'growth',
+        from: 2,
+        to: 3,
+        rowOffset: 0,
+        columnOffset: 0,
+      },
       { type: 'game-over' },
     ]),
     'Game over',

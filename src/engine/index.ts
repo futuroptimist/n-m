@@ -1,9 +1,11 @@
-export const ENGINE_SCHEMA_VERSION = 1 as const;
+export const ENGINE_SCHEMA_VERSION = 2 as const;
 
 export type TileExponent = number;
 export type Cell = TileExponent | null;
 export type Board = readonly (readonly Cell[])[];
 export type Direction = 'up' | 'down' | 'left' | 'right';
+export type HorizontalDirection = Extract<Direction, 'left' | 'right'>;
+export type VerticalDirection = Extract<Direction, 'up' | 'down'>;
 export type GameStatus = 'active' | 'game-over';
 export type RandomSource = () => number;
 
@@ -15,6 +17,8 @@ export interface GameState {
   readonly highestCreatedExponent: TileExponent;
   readonly score: bigint;
   readonly status: GameStatus;
+  readonly lastHorizontalDirection: HorizontalDirection | null;
+  readonly lastVerticalDirection: VerticalDirection | null;
 }
 
 export interface GrowthInfo {
@@ -31,7 +35,13 @@ export type EngineEvent =
       readonly exponent: TileExponent;
       readonly value: bigint;
     }
-  | { readonly type: 'growth'; readonly from: number; readonly to: number }
+  | {
+      readonly type: 'growth';
+      readonly from: number;
+      readonly to: number;
+      readonly rowOffset: number;
+      readonly columnOffset: number;
+    }
   | {
       readonly type: 'spawn';
       readonly row: number;
@@ -88,6 +98,8 @@ export function createGame(k: number, random: RandomSource): GameState {
     highestCreatedExponent: 1,
     score: 0n,
     status: 'active',
+    lastHorizontalDirection: null,
+    lastVerticalDirection: null,
   };
 }
 
@@ -97,6 +109,7 @@ export function move(
   random: RandomSource,
 ): MoveResult {
   assertGameState(state);
+  const directionHistory = updatedDirectionHistory(state, direction);
   const size = state.board.length;
   const output = emptyBoard(size);
   const mergedExponents: number[] = [];
@@ -119,7 +132,13 @@ export function move(
     );
   }
 
-  if (!changed) return { state, moved: false, events: [], transitions: [] };
+  if (!changed)
+    return {
+      state: { ...state, ...directionHistory },
+      moved: false,
+      events: [],
+      transitions: [],
+    };
 
   let highestCreatedExponent = state.highestCreatedExponent;
   const mergeEvents: Extract<EngineEvent, { type: 'merge' }>[] = [];
@@ -134,20 +153,34 @@ export function move(
     size,
     deriveGrowth(highestCreatedExponent, state.activeK).sideLength,
   );
-  const grown = growBoard(output, targetSize);
+  const growthAmount = targetSize - size;
+  const rowOffset =
+    growthAmount > 0 && directionHistory.lastVerticalDirection === 'down'
+      ? growthAmount
+      : 0;
+  const columnOffset =
+    growthAmount > 0 && directionHistory.lastHorizontalDirection === 'right'
+      ? growthAmount
+      : 0;
+  const grown = growBoard(output, targetSize, rowOffset, columnOffset);
   const exponent = randomSample(random) < 0.9 ? 1 : 2;
   const spawned = spawn(grown, exponent, random);
   const status: GameStatus = isGameOver(spawned.board) ? 'game-over' : 'active';
   const events: EngineEvent[] = [{ type: 'move', direction }, ...mergeEvents];
   if (targetSize > size)
-    events.push({ type: 'growth', from: size, to: targetSize });
+    events.push({
+      type: 'growth',
+      from: size,
+      to: targetSize,
+      rowOffset,
+      columnOffset,
+    });
   events.push({ type: 'spawn', ...spawned.position, exponent });
   if (status === 'game-over') events.push({ type: 'game-over' });
 
   return {
     moved: true,
     events,
-    transitions,
     state: {
       ...state,
       sideLength: targetSize,
@@ -155,8 +188,35 @@ export function move(
       highestCreatedExponent,
       score: state.score + scoreIncrease,
       status,
+      ...directionHistory,
     },
+    transitions: transitions.map((transition) => ({
+      ...transition,
+      from: {
+        row: transition.from.row + rowOffset,
+        column: transition.from.column + columnOffset,
+      },
+      to: {
+        row: transition.to.row + rowOffset,
+        column: transition.to.column + columnOffset,
+      },
+    })),
   };
+}
+
+function updatedDirectionHistory(
+  state: GameState,
+  direction: Direction,
+): Pick<GameState, 'lastHorizontalDirection' | 'lastVerticalDirection'> {
+  return direction === 'left' || direction === 'right'
+    ? {
+        lastHorizontalDirection: direction,
+        lastVerticalDirection: state.lastVerticalDirection,
+      }
+    : {
+        lastHorizontalDirection: state.lastHorizontalDirection,
+        lastVerticalDirection: direction,
+      };
 }
 
 export function availableMoves(board: Board): Direction[] {
@@ -282,9 +342,17 @@ function emptyBoard(size: number): Cell[][] {
   return Array.from({ length: size }, () => Array<Cell>(size).fill(null));
 }
 
-function growBoard(board: Board, size: number): Cell[][] {
+function growBoard(
+  board: Board,
+  size: number,
+  rowOffset: number,
+  columnOffset: number,
+): Cell[][] {
   return Array.from({ length: size }, (_, row) =>
-    Array.from({ length: size }, (_, column) => board[row]?.[column] ?? null),
+    Array.from(
+      { length: size },
+      (_, column) => board[row - rowOffset]?.[column - columnOffset] ?? null,
+    ),
   );
 }
 
@@ -376,6 +444,20 @@ function assertGameState(state: GameState): void {
     throw new RangeError('Score must be a non-negative bigint');
   }
   assertBoard(state.board, state.sideLength, state.highestCreatedExponent);
+  if (
+    state.lastHorizontalDirection !== null &&
+    state.lastHorizontalDirection !== 'left' &&
+    state.lastHorizontalDirection !== 'right'
+  ) {
+    throw new RangeError('Invalid horizontal direction history');
+  }
+  if (
+    state.lastVerticalDirection !== null &&
+    state.lastVerticalDirection !== 'up' &&
+    state.lastVerticalDirection !== 'down'
+  ) {
+    throw new RangeError('Invalid vertical direction history');
+  }
   if (
     state.sideLength !==
     deriveGrowth(state.highestCreatedExponent, state.activeK).sideLength
