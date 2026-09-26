@@ -94,11 +94,11 @@ export function GameScreen() {
       )
         return;
       const result = move(current, direction, Math.random);
-      if (!result.moved) return;
       gameRef.current = result.state;
       setGame(result.state);
-      setMoveResult(result);
       persist(result.state);
+      if (!result.moved) return;
+      setMoveResult(result);
       const announcement = selectMoveAnnouncement(result.events);
       if (announcement !== null) {
         AccessibilityInfo.announceForAccessibility(announcement);

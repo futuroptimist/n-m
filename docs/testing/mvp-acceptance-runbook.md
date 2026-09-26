@@ -102,8 +102,10 @@ rather than writing one overall result.
    select another value and press New game: first cancel and retain the exact
    run, then confirm and get a fresh 2×2 run at the selected `k`.
 5. **Growth:** in natural play at `k=1`, merge the first 4, 8, and 16. Confirm
-   board sizes 3×3, 4×4, and 5×5 respectively; existing positions remain while
-   space is added below/right, next-growth text advances, and play continues.
+   board sizes 3×3, 4×4, and 5×5 respectively; space is inserted opposite the
+   latest direction on each axis (or below/right with no history), retained
+   tiles shift intact when space is prepended, next-growth text advances, and
+   play continues.
 6. **Persistence:** note `k`, board cells, score, next milestone, and status;
    background the app, then terminate and relaunch it through the normal OS app
    switcher/launcher flow. Confirm the same state resumes atomically. Make
@@ -245,6 +247,15 @@ confirm:
 7. after enabling Reduce Motion, slides, merges, spawns, and growth update
    immediately without spatial motion while controls and resulting state remain
    understandable. Restore the preference afterward.
+
+Across natural growth milestones, establish down/right, down/left, up/right, and
+up/left direction histories. Confirm each combination inserts at the opposite
+edges, keeps corner tiles and both merge participants coherent during motion,
+places the spawn only after the slide, and never shows a blank occupied cell.
+Before another milestone, make a recognized no-op on one axis, relaunch the app,
+and confirm that direction controls the growth edge after restart with no no-op
+animation or announcement. Exercise both swipes and directional buttons; taps,
+pan, and pinch must not change the remembered directions.
 
 Also start a new game and relaunch a saved game after animated moves. Confirm no
 stale overlay or duplicate tile remains and the restored board matches the
