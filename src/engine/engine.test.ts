@@ -30,6 +30,8 @@ function state(
   activeK = board.length === 2 ? 10 : 1,
   highestCreatedExponent = 1 + activeK * (board.length - 2),
   score = 0n,
+  lastHorizontalDirection: GameState['lastHorizontalDirection'] = null,
+  lastVerticalDirection: GameState['lastVerticalDirection'] = null,
 ): GameState {
   return {
     schemaVersion: ENGINE_SCHEMA_VERSION,
@@ -39,6 +41,8 @@ function state(
     highestCreatedExponent,
     score,
     status: isGameOver(board) ? 'game-over' : 'active',
+    lastHorizontalDirection,
+    lastVerticalDirection,
   };
 }
 
@@ -53,11 +57,13 @@ function boardWithMergePair(sideLength: number, exponent: number): Board {
 test('new games validate k and place exactly two exponent-1 tiles', () => {
   for (const k of [1, 10]) {
     const game = createGame(k, sequence(0, 0.999));
-    assert.equal(game.schemaVersion, 1);
+    assert.equal(game.schemaVersion, 2);
     assert.equal(game.activeK, k);
     assert.equal(game.sideLength, 2);
     assert.equal(game.highestCreatedExponent, 1);
     assert.equal(game.score, 0n);
+    assert.equal(game.lastHorizontalDirection, null);
+    assert.equal(game.lastVerticalDirection, null);
     assert.deepEqual(game.board, [
       [1, null],
       [null, 1],
@@ -154,7 +160,13 @@ test('k=1 expands at the merged 4, 8, and 16 milestones', () => {
     assert.equal(result.state.highestCreatedExponent, mergedExponent);
     assert.deepEqual(
       result.events.find((event) => event.type === 'growth'),
-      { type: 'growth', from: sideLength - 1, to: sideLength },
+      {
+        type: 'growth',
+        from: sideLength - 1,
+        to: sideLength,
+        rowOffset: 0,
+        columnOffset: 0,
+      },
     );
   }
 });
@@ -179,7 +191,13 @@ test('k=2 grows only at the merged 8, 32, and 128 milestones', () => {
     assert.deepEqual(
       result.events.find((event) => event.type === 'growth'),
       reachesMilestone
-        ? { type: 'growth', from: previousSideLength, to: sideLength }
+        ? {
+            type: 'growth',
+            from: previousSideLength,
+            to: sideLength,
+            rowOffset: 0,
+            columnOffset: 0,
+          }
         : undefined,
     );
   }
@@ -205,8 +223,138 @@ test('growth precedes spawning, including multiple increments and appended space
       type: 'growth',
       from: 2,
       to: 4,
+      rowOffset: 0,
+      columnOffset: 0,
     },
   );
+});
+
+test('growth uses the opposite edge for every horizontal and vertical direction pair', () => {
+  for (const [vertical, horizontal, rowOffset, columnOffset] of [
+    ['down', 'right', 1, 1],
+    ['down', 'left', 1, 0],
+    ['up', 'right', 0, 1],
+    ['up', 'left', 0, 0],
+  ] as const) {
+    const input = state(
+      [
+        [1, 1],
+        [2, null],
+      ],
+      1,
+      1,
+      0n,
+      null,
+      vertical,
+    );
+    const result = move(input, horizontal, sequence(0, 0.999));
+    const mergeColumn = horizontal === 'right' ? 2 : 0;
+
+    assert.deepEqual(
+      result.events.find((event) => event.type === 'growth'),
+      {
+        type: 'growth',
+        from: 2,
+        to: 3,
+        rowOffset,
+        columnOffset,
+      },
+    );
+    assert.equal(result.state.board[rowOffset][mergeColumn], 2);
+    assert.equal(result.state.lastHorizontalDirection, horizontal);
+    assert.equal(result.state.lastVerticalDirection, vertical);
+  }
+});
+
+test('growth defaults only an unknown axis to its append edge', () => {
+  const result = move(
+    state(
+      [
+        [1, null],
+        [1, 2],
+      ],
+      1,
+      1,
+      0n,
+      'right',
+      null,
+    ),
+    'up',
+    sequence(0, 0.999),
+  );
+
+  assert.deepEqual(
+    result.events.find((event) => event.type === 'growth'),
+    {
+      type: 'growth',
+      from: 2,
+      to: 3,
+      rowOffset: 0,
+      columnOffset: 1,
+    },
+  );
+  assert.equal(result.state.board[0][1], 2);
+  assert.equal(result.state.lastHorizontalDirection, 'right');
+  assert.equal(result.state.lastVerticalDirection, 'up');
+});
+
+test('interleaved recognized moves retain independent axis history', () => {
+  let current = state([
+    [1, null],
+    [2, null],
+  ]);
+  current = move(current, 'left', sequence()).state;
+  current = move(current, 'up', sequence()).state;
+  current = move(current, 'right', sequence(0, 0)).state;
+
+  assert.equal(current.lastHorizontalDirection, 'right');
+  assert.equal(current.lastVerticalDirection, 'up');
+});
+
+test('multi-threshold prepended growth shifts tiles and can spawn in new space', () => {
+  const result = move(
+    state(
+      [
+        [2, 2],
+        [1, null],
+      ],
+      1,
+      1,
+      0n,
+      'right',
+      'down',
+    ),
+    'right',
+    sequence(0, 0),
+  );
+
+  assert.equal(result.state.sideLength, 4);
+  assert.deepEqual(
+    result.events.find((event) => event.type === 'growth'),
+    {
+      type: 'growth',
+      from: 2,
+      to: 4,
+      rowOffset: 2,
+      columnOffset: 2,
+    },
+  );
+  assert.deepEqual(result.state.board[0], [1, null, null, null]);
+  assert.equal(result.state.board[2][3], 3);
+  assert.deepEqual(result.transitions.slice(0, 2), [
+    {
+      from: { row: 2, column: 3 },
+      to: { row: 2, column: 3 },
+      exponent: 2,
+      merges: true,
+    },
+    {
+      from: { row: 2, column: 2 },
+      to: { row: 2, column: 3 },
+      exponent: 2,
+      merges: true,
+    },
+  ]);
 });
 
 test('a spawned 4 does not advance the merge milestone', () => {
@@ -232,7 +380,8 @@ test('no-op moves preserve state and consume no randomness', () => {
     calls += 1;
     return 0;
   });
-  assert.equal(result.state, input);
+  assert.notEqual(result.state, input);
+  assert.deepEqual(result.state, { ...input, lastHorizontalDirection: 'left' });
   assert.equal(result.moved, false);
   assert.deepEqual(result.events, []);
   assert.equal(calls, 0);
@@ -244,7 +393,15 @@ test('move rejects invalid runtime state before consuming randomness', () => {
     [null, 1],
   ]);
   const invalidStates: GameState[] = [
-    { ...valid, schemaVersion: 2 } as unknown as GameState,
+    { ...valid, schemaVersion: 3 } as unknown as GameState,
+    {
+      ...valid,
+      lastHorizontalDirection: 'up',
+    } as unknown as GameState,
+    {
+      ...valid,
+      lastVerticalDirection: 'right',
+    } as unknown as GameState,
     { ...valid, activeK: 0 },
     { ...valid, sideLength: 3 },
     { ...valid, board: [[1, null], [null]] },
