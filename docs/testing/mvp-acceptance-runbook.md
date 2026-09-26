@@ -91,24 +91,30 @@ rather than writing one overall result.
    cardinal directions. A legal move slides tiles and creates exactly one new
    tile; a no-op does neither. Merge two equal values, confirm they merge only
    once per move, and confirm the score rises by the resulting tile value.
-3. **Directional controls:** invoke Move up/down/left/right and confirm each
+3. **Tile presentation:** During ordinary slides, merges, and spawns, confirm
+   settled tiles and moving overlays of the same value use the same background
+   and text colors. Confirm every visible value remains readable, empty cells
+   remain a distinct neutral color with no label, and no tile becomes blank
+   before, during, or after an animation. Record only colors reached through the
+   natural session; do not claim live coverage of all twenty palette entries.
+4. **Directional controls:** invoke Move up/down/left/right and confirm each
    follows the same rules as its swipe. Check that each target is comfortably
    operable and at least 44 logical points. Open the on-screen Controls panel to
    reach these alternatives; confirm the underlying gameplay surface does not
    scroll.
-4. **`k` range and replacement:** decrement at 1 and increment through every
+5. **`k` range and replacement:** decrement at 1 and increment through every
    displayed value to 10. Confirm the bounds are disabled, the active run's `k`
    does not change, and the warning appears for 5–10. With an unfinished run,
    select another value and press New game: first cancel and retain the exact
    run, then confirm and get a fresh 2×2 run at the selected `k`.
-5. **Growth:** in natural play at `k=1`, merge the first 4, 8, and 16. Confirm
+6. **Growth:** in natural play at `k=1`, merge the first 4, 8, and 16. Confirm
    board sizes 3×3, 4×4, and 5×5 respectively; existing positions remain while
    space is added below/right, next-growth text advances, and play continues.
-6. **Persistence:** note `k`, board cells, score, next milestone, and status;
+7. **Persistence:** note `k`, board cells, score, next milestone, and status;
    background the app, then terminate and relaunch it through the normal OS app
    switcher/launcher flow. Confirm the same state resumes atomically. Make
    another move and repeat. This is a real relaunch, not hot reload.
-7. **Game over:** naturally fill a run until no slide or merge remains. Confirm
+8. **Game over:** naturally fill a run until no slide or merge remains. Confirm
    `Game over`, the final score, an understandable final board, and no further
    move response. Confirm New game starts immediately without an unfinished-run
    warning. A full but mergeable board must remain playable if encountered.
