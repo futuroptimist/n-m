@@ -7,9 +7,6 @@ export const colors = {
   panel: '#fffdf8',
   primary: '#365b4d',
   primaryPressed: '#29473c',
-  tileDark: '#5f4037',
-  tileLight: '#efe3c3',
-  tileMid: '#d89b61',
   white: '#ffffff',
 } as const;
 

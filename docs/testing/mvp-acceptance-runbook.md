@@ -91,6 +91,11 @@ rather than writing one overall result.
    cardinal directions. A legal move slides tiles and creates exactly one new
    tile; a no-op does neither. Merge two equal values, confirm they merge only
    once per move, and confirm the score rises by the resulting tile value.
+   During slides and merges, confirm moving overlays use the same colors as the
+   settled values they represent. Confirm every visible number remains readable,
+   empty cells stay muted and unlabeled, and no settled or moving tile becomes
+   blank before or after its animation. Do not infer unobserved palette entries
+   from naturally reached values.
 3. **Directional controls:** invoke Move up/down/left/right and confirm each
    follows the same rules as its swipe. Check that each target is comfortably
    operable and at least 44 logical points. Open the on-screen Controls panel to
