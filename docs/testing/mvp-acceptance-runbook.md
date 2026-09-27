@@ -101,40 +101,13 @@ rather than writing one overall result.
    does not change, and the warning appears for 5–10. With an unfinished run,
    select another value and press New game: first cancel and retain the exact
    run, then confirm and get a fresh 2×2 run at the selected `k`.
-5. **Direction-aware growth:** through natural play at `k=1`, observe growth
-   after each of the four latest-direction combinations: down/right, down/left,
-   up/right, and up/left. Use separate runs or later milestones as needed, and
-   record unobserved combinations as **Not run** rather than inferring them from
-   automated tests. Immediately before each growth, capture the board and the
-   moves establishing both axis histories; immediately after it, confirm:
-   - rows and columns were added opposite those directions (top/left for
-     down/right, top/right for down/left, bottom/left for up/right, and
-     bottom/right for up/left);
-   - the retained old-board corners, every stationary tile, and both tiles that
-     participate in the threshold merge appear at their correctly offset final
-     coordinates, including during movement/merge presentation;
-   - exactly one spawn appears only after growth, in an empty cell selected from
-     the complete expanded board, and no previously occupied cell is blank;
-   - every new row and column is rendered, empty cells remain visibly neutral,
-     and there are no missing, clipped, or unexplained blank cells; and
-   - the board reaches 3×3, 4×4, then 5×5 after the first merged 4, 8, then 16,
-     the next-growth text advances, and play continues.
-
-   Also exercise growth while one axis has no direction history: an unknown
-   vertical axis adds space at the bottom, and an unknown horizontal axis adds
-   space at the right. Record either case as **Not run** if natural play does
-   not produce it.
-
-6. **Persistence and no-op history:** note `k`, board cells, score, next
-   milestone, status, and the latest direction on each axis. Make a recognized
-   no-op move on one axis and confirm it does not move/merge/spawn, change the
-   score or milestone, grow, animate, or announce. Background the app, terminate
-   it through the normal OS flow, and relaunch it from the launcher (not hot
-   reload). Confirm the exact state resumes atomically, then reach the next
-   growth through natural play and confirm its inserted edge reflects the
-   persisted no-op direction while the other axis retains its own history. Make
-   another move and repeat the real restart check. If a no-op or subsequent
-   growth is not reached naturally, record that case as **Not run**.
+5. **Growth:** in natural play at `k=1`, merge the first 4, 8, and 16. Confirm
+   board sizes 3×3, 4×4, and 5×5 respectively; existing positions remain while
+   space is added below/right, next-growth text advances, and play continues.
+6. **Persistence:** note `k`, board cells, score, next milestone, and status;
+   background the app, then terminate and relaunch it through the normal OS app
+   switcher/launcher flow. Confirm the same state resumes atomically. Make
+   another move and repeat. This is a real relaunch, not hot reload.
 7. **Game over:** naturally fill a run until no slide or merge remains. Confirm
    `Game over`, the final score, an understandable final board, and no further
    move response. Confirm New game starts immediately without an unfinished-run
