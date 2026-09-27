@@ -101,13 +101,40 @@ rather than writing one overall result.
    does not change, and the warning appears for 5–10. With an unfinished run,
    select another value and press New game: first cancel and retain the exact
    run, then confirm and get a fresh 2×2 run at the selected `k`.
-5. **Growth:** in natural play at `k=1`, merge the first 4, 8, and 16. Confirm
-   board sizes 3×3, 4×4, and 5×5 respectively; existing positions remain while
-   space is added below/right, next-growth text advances, and play continues.
-6. **Persistence:** note `k`, board cells, score, next milestone, and status;
-   background the app, then terminate and relaunch it through the normal OS app
-   switcher/launcher flow. Confirm the same state resumes atomically. Make
-   another move and repeat. This is a real relaunch, not hot reload.
+5. **Direction-aware growth:** through natural play at `k=1`, observe growth
+   after each of the four latest-direction combinations: down/right, down/left,
+   up/right, and up/left. Use separate runs or later milestones as needed, and
+   record unobserved combinations as **Not run** rather than inferring them from
+   automated tests. Immediately before each growth, capture the board and the
+   moves establishing both axis histories; immediately after it, confirm:
+   - rows and columns were added opposite those directions (top/left for
+     down/right, top/right for down/left, bottom/left for up/right, and
+     bottom/right for up/left);
+   - the retained old-board corners, every stationary tile, and both tiles that
+     participate in the threshold merge appear at their correctly offset final
+     coordinates, including during movement/merge presentation;
+   - exactly one spawn appears only after growth, in an empty cell selected from
+     the complete expanded board, and no previously occupied cell is blank;
+   - every new row and column is rendered, empty cells remain visibly neutral,
+     and there are no missing, clipped, or unexplained blank cells; and
+   - the board reaches 3×3, 4×4, then 5×5 after the first merged 4, 8, then 16,
+     the next-growth text advances, and play continues.
+
+   Also exercise growth while one axis has no direction history: an unknown
+   vertical axis adds space at the bottom, and an unknown horizontal axis adds
+   space at the right. Record either case as **Not run** if natural play does
+   not produce it.
+
+6. **Persistence and no-op history:** note `k`, board cells, score, next
+   milestone, status, and the latest direction on each axis. Make a recognized
+   no-op move on one axis and confirm it does not move/merge/spawn, change the
+   score or milestone, grow, animate, or announce. Background the app, terminate
+   it through the normal OS flow, and relaunch it from the launcher (not hot
+   reload). Confirm the exact state resumes atomically, then reach the next
+   growth through natural play and confirm its inserted edge reflects the
+   persisted no-op direction while the other axis retains its own history. Make
+   another move and repeat the real restart check. If a no-op or subsequent
+   growth is not reached naturally, record that case as **Not run**.
 7. **Game over:** naturally fill a run until no slide or merge remains. Confirm
    `Game over`, the final score, an understandable final board, and no further
    move response. Confirm New game starts immediately without an unfinished-run
@@ -455,26 +482,26 @@ release signing, a store upload, ads, analytics, or production distribution.
 
 Use one result per environment where the row applies.
 
-| Area                             | Expected observation                                                                                                                                                                                                           | Minimum evidence                                                                  |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| Static validation                | Clean candidate; required Node; install, checks, tests, config, and diff checks exit zero                                                                                                                                      | SHA plus complete command log and tool versions                                   |
-| Fresh game                       | 2×2, two distinct 2s, score 0, `k=1`, milestone shown                                                                                                                                                                          | Screenshot and brief observation                                                  |
-| `k` settings                     | Every 1–10 value reachable; bounds disabled; 5–10 warning; active `k` immutable                                                                                                                                                | Screenshots at bounds/warning and notes                                           |
-| Movement / merges / score        | Four directions work; legal/no-op spawn behavior; equal tiles merge once; exact score delta                                                                                                                                    | Before/after capture and action sequence                                          |
-| Growth                           | At `k=1`, first merged 4/8/16 yields exactly 3×3/4×4/5×5                                                                                                                                                                       | Milestone screenshots/video and move notes                                        |
-| Game over                        | Blocked board announces final score, rejects moves, and starts fresh without unfinished warning                                                                                                                                | Final/fresh screenshots and observation                                           |
-| Save / resume                    | Exact run returns after background and true relaunch                                                                                                                                                                           | Before/after captures and relaunch steps                                          |
-| Recovery behavior                | Automated tests cover valid, corrupt, newer, read/write/clear failure behavior without silent destruction                                                                                                                      | Named test command/output; live result separately Not run unless safely exercised |
-| Small-board swipe                | Fitted board accepts deliberate one-finger swipes in four directions                                                                                                                                                           | Short video or action/result notes                                                |
-| Expanding-board fit              | Natural-play 128/8×8 and later growth fully fit; zoom/pan/pinch, fit, clamping, and inspection work                                                                                                                            | Video/screenshots for each item, or Not run blocker                               |
-| Inspector / directional controls | 44-point accessible controls; exact one-based cell text; all rows/columns and moves reachable; movement transition exposes a discoverable unavailable status and temporarily disabled directional controls, then restores them | Assistive-tech notes and representative captures                                  |
-| Announcements                    | Only merges, growth, and game over announce; game over has priority                                                                                                                                                            | VoiceOver/TalkBack recording or transcript                                        |
-| Dynamic Type / font size         | Large text remains readable; main play is fixed and secondary Controls may scroll internally                                                                                                                                   | Default/large screenshots and configured size                                     |
-| Motion / reduced motion          | Slide, merge, and spawn are coherent; the platform preference produces an immediate usable update                                                                                                                              | Preference name/value and video or action/result notes                            |
-| VoiceOver / TalkBack             | Logical focus; names, roles, states, bounds; no focus trap; non-color meaning                                                                                                                                                  | Version/settings and narrated transcript/video                                    |
-| iOS Simulator                    | All applicable simulator cases run on the recorded runtime                                                                                                                                                                     | Device/runtime/Xcode versions and matrix results                                  |
-| iPhone 13 Pro                    | Full matrix rerun on hardware, including reachability and real relaunch                                                                                                                                                        | Model/iOS/app bundle, versions, video/screenshots                                 |
-| Android                          | Full applicable matrix on discovered target; physical-only rows distinguished                                                                                                                                                  | Model or AVD/API, Android/JDK/SDK versions, captures                              |
+| Area                             | Expected observation                                                                                                                                                                                                           | Minimum evidence                                                                                          |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Static validation                | Clean candidate; required Node; install, checks, tests, config, and diff checks exit zero                                                                                                                                      | SHA plus complete command log and tool versions                                                           |
+| Fresh game                       | 2×2, two distinct 2s, score 0, `k=1`, milestone shown                                                                                                                                                                          | Screenshot and brief observation                                                                          |
+| `k` settings                     | Every 1–10 value reachable; bounds disabled; 5–10 warning; active `k` immutable                                                                                                                                                | Screenshots at bounds/warning and notes                                                                   |
+| Movement / merges / score        | Four directions work; legal/no-op spawn behavior; equal tiles merge once; exact score delta                                                                                                                                    | Before/after capture and action sequence                                                                  |
+| Direction-aware growth           | At `k=1`, first merged 4/8/16 yields 3×3/4×4/5×5; all four direction pairs and unknown-axis defaults use the expected edges; shifted tiles, one post-growth spawn, and every occupied cell render correctly                    | Before/after milestone captures, axis-history move notes, and **Not run** for each unobserved combination |
+| Game over                        | Blocked board announces final score, rejects moves, and starts fresh without unfinished warning                                                                                                                                | Final/fresh screenshots and observation                                                                   |
+| Save / resume and no-op history  | Exact run and independent axis histories return after background, termination, and true launcher relaunch; a recognized no-op persists its axis direction without movement, spawn, animation, or announcement                  | Before/after captures, no-op observation, relaunch steps, and subsequent growth edge                      |
+| Recovery behavior                | Automated tests cover valid, corrupt, newer, read/write/clear failure behavior without silent destruction                                                                                                                      | Named test command/output; live result separately Not run unless safely exercised                         |
+| Small-board swipe                | Fitted board accepts deliberate one-finger swipes in four directions                                                                                                                                                           | Short video or action/result notes                                                                        |
+| Expanding-board fit              | Natural-play 128/8×8 and later growth fully fit; zoom/pan/pinch, fit, clamping, and inspection work                                                                                                                            | Video/screenshots for each item, or Not run blocker                                                       |
+| Inspector / directional controls | 44-point accessible controls; exact one-based cell text; all rows/columns and moves reachable; movement transition exposes a discoverable unavailable status and temporarily disabled directional controls, then restores them | Assistive-tech notes and representative captures                                                          |
+| Announcements                    | Only merges, growth, and game over announce; game over has priority                                                                                                                                                            | VoiceOver/TalkBack recording or transcript                                                                |
+| Dynamic Type / font size         | Large text remains readable; main play is fixed and secondary Controls may scroll internally                                                                                                                                   | Default/large screenshots and configured size                                                             |
+| Motion / reduced motion          | Slide, merge, and spawn are coherent; the platform preference produces an immediate usable update                                                                                                                              | Preference name/value and video or action/result notes                                                    |
+| VoiceOver / TalkBack             | Logical focus; names, roles, states, bounds; no focus trap; non-color meaning                                                                                                                                                  | Version/settings and narrated transcript/video                                                            |
+| iOS Simulator                    | All applicable simulator cases run on the recorded runtime                                                                                                                                                                     | Device/runtime/Xcode versions and matrix results                                                          |
+| iPhone 13 Pro                    | Full matrix rerun on hardware, including reachability and real relaunch                                                                                                                                                        | Model/iOS/app bundle, versions, video/screenshots                                                         |
+| Android                          | Full applicable matrix on discovered target; physical-only rows distinguished                                                                                                                                                  | Model or AVD/API, Android/JDK/SDK versions, captures                                                      |
 
 Any required **Fail** blocks acceptance. Any required **Not run**, especially
 the natural-play oversized-board checks on the required targets, also blocks
