@@ -33,7 +33,7 @@ class MemoryStore implements AsyncKeyValueStore {
 }
 
 const grownGame: GameState = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   activeK: 2,
   sideLength: 4,
   board: [
@@ -45,6 +45,8 @@ const grownGame: GameState = {
   highestCreatedExponent: 5,
   score: 9_007_199_254_740_993_123_456_789n,
   status: 'active',
+  lastHorizontalDirection: 'right',
+  lastVerticalDirection: 'up',
 };
 
 function saved(overrides: Record<string, unknown> = {}): string {
@@ -81,7 +83,7 @@ test('round trips every persisted field with an exact bigint score', async () =>
 
 test('round trips a valid grown game-over run exactly', async () => {
   const gameOver: GameState = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     activeK: 2,
     sideLength: 4,
     board: [
@@ -93,6 +95,8 @@ test('round trips a valid grown game-over run exactly', async () => {
     highestCreatedExponent: 5,
     score: 9_007_199_254_740_993_123_456_789n,
     status: 'game-over',
+    lastHorizontalDirection: 'left',
+    lastVerticalDirection: 'down',
   };
   const store = new MemoryStore();
   const persistence = new GameStorage(store);
@@ -178,7 +182,7 @@ test('classifies malformed, unsupported, and newer saves without changing them',
     ['{', 'invalid'],
     [saved({ schemaVersion: 0 }), 'invalid'],
     [saved({ schemaVersion: 1.5 }), 'invalid'],
-    [saved({ schemaVersion: 2 }), 'newer-version'],
+    [saved({ schemaVersion: 3 }), 'newer-version'],
   ] as const;
   for (const [value, reason] of cases) {
     const store = new MemoryStore();
@@ -186,6 +190,55 @@ test('classifies malformed, unsupported, and newer saves without changing them',
     assert.deepEqual(await new GameStorage(store).load(), {
       type: 'recovery',
       reason,
+    });
+    assert.equal(store.values.get(GAME_STORAGE_KEY), value);
+  }
+});
+
+test('migrates schema-v1 saves with unknown direction history', () => {
+  const legacy = saved({
+    activeK: 2,
+    sideLength: 3,
+    board: [
+      [3, 2, null],
+      [1, null, null],
+      [null, null, 1],
+    ],
+    highestCreatedExponent: 3,
+    score: '12345678901234567890',
+    status: 'active',
+  });
+
+  assert.deepEqual(deserializeGame(legacy), {
+    schemaVersion: 2,
+    activeK: 2,
+    sideLength: 3,
+    board: [
+      [3, 2, null],
+      [1, null, null],
+      [null, null, 1],
+    ],
+    highestCreatedExponent: 3,
+    score: 12_345_678_901_234_567_890n,
+    status: 'active',
+    lastHorizontalDirection: null,
+    lastVerticalDirection: null,
+  });
+});
+
+test('rejects malformed schema-v2 directions without overwriting stored bytes', async () => {
+  for (const directions of [
+    { lastHorizontalDirection: 'up', lastVerticalDirection: null },
+    { lastHorizontalDirection: null, lastVerticalDirection: 'right' },
+    { lastHorizontalDirection: undefined, lastVerticalDirection: null },
+  ]) {
+    const value = saved({ schemaVersion: 2, ...directions });
+    const store = new MemoryStore();
+    store.values.set(GAME_STORAGE_KEY, value);
+
+    assert.deepEqual(await new GameStorage(store).load(), {
+      type: 'recovery',
+      reason: 'invalid',
     });
     assert.equal(store.values.get(GAME_STORAGE_KEY), value);
   }

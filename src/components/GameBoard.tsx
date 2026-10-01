@@ -96,9 +96,10 @@ export function GameBoard({
   const geometry = useRef({ sideLength: game.sideLength, viewportSize: 0 });
   const onMoveRef = useRef(onMove);
 
-  const growth = moveResult?.events.find((event) => event.type === 'growth');
-  const presentationSideLength =
-    growth?.type === 'growth' ? growth.from : game.sideLength;
+  const presentationSideLength = game.sideLength;
+  // Gesture callbacks outlive individual renders, so keep their geometry on
+  // the same board size that this render presents, including during growth.
+  geometry.current.sideLength = presentationSideLength;
   const boardGeometry = fittedBoardGeometry(
     presentationSideLength,
     viewportSize,
