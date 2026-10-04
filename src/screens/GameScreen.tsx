@@ -8,9 +8,10 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
-import { GameBoard } from '../components/GameBoard';
+import { GameBoard, PlatformSafeAreaView } from '../components/GameBoard';
 import { selectMoveAnnouncement } from '../components/boardInteraction';
 import {
   createGame,
@@ -25,6 +26,8 @@ import { gameStorage } from '../storage/asyncStorageAdapter';
 import type { RecoveryReason } from '../storage/gameStorage';
 
 export function GameScreen() {
+  const { width, fontScale } = useWindowDimensions();
+  const compactHeader = width < 360 || fontScale > 1.2;
   const [pendingK, setPendingK] = useState(1);
   const [game, setGame] = useState<GameState | null>(null);
   const [boardSession, setBoardSession] = useState(0);
@@ -189,7 +192,7 @@ export function GameScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <PlatformSafeAreaView style={styles.screen}>
       <View style={styles.content}>
         <View style={styles.header}>
           <Text
@@ -202,6 +205,7 @@ export function GameScreen() {
           <View
             accessible
             accessibilityLabel={`Score ${game.score.toString()}`}
+            style={styles.scoreGroup}
           >
             <Text style={styles.scoreLabel}>SCORE</Text>
             <Text style={styles.score}>{game.score.toString()}</Text>
@@ -212,6 +216,7 @@ export function GameScreen() {
             onPress={requestNewGame}
             style={({ pressed }) => [
               styles.primaryButton,
+              compactHeader && styles.compactNewGame,
               pressed && styles.pressed,
             ]}
           >
@@ -220,7 +225,7 @@ export function GameScreen() {
         </View>
         <View style={styles.statusPanel}>
           <Text style={styles.activeSetting}>Active k: {game.activeK}</Text>
-          <Text numberOfLines={1} adjustsFontSizeToFit style={styles.milestone}>
+          <Text numberOfLines={2} style={styles.milestone}>
             Next growth: merge {growth.nextExpansionTile.toString()} →{' '}
             {growth.sideLength + 1}×{growth.sideLength + 1}
           </Text>
@@ -252,15 +257,21 @@ export function GameScreen() {
         >
           <Text style={styles.primaryButtonText}>Controls</Text>
         </Pressable>
-        {moveResult === null ? null : (
-          <Text
-            accessible
-            accessibilityLabel="Moving tiles. Directional moves are temporarily unavailable."
-            style={styles.moveStatus}
-          >
-            Moving tiles… Directional moves are temporarily unavailable.
-          </Text>
-        )}
+        {/* Keep the viewport stable while the move status appears. */}
+        <Text
+          accessible={moveResult !== null}
+          accessibilityElementsHidden={moveResult === null}
+          importantForAccessibility={
+            moveResult === null ? 'no-hide-descendants' : 'auto'
+          }
+          accessibilityLabel="Moving tiles. Directional moves are temporarily unavailable."
+          style={[
+            styles.moveStatus,
+            moveResult === null && styles.idleMoveStatus,
+          ]}
+        >
+          Moving tiles… Directional moves are temporarily unavailable.
+        </Text>
         {game.status === 'game-over' ? (
           <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
             <Text accessibilityRole="header" style={styles.gameOverTitle}>
@@ -272,7 +283,7 @@ export function GameScreen() {
           </View>
         ) : null}
       </View>
-    </View>
+    </PlatformSafeAreaView>
   );
 }
 
@@ -293,23 +304,31 @@ const styles = StyleSheet.create({
     maxWidth: 440,
     textAlign: 'center',
   },
-  errorText: { color: '#8b1e1e', fontSize: 13 },
+  errorText: { color: '#8b1e1e', flexShrink: 0, fontSize: 13 },
   screen: {
     alignItems: 'center',
     backgroundColor: colors.background,
     flex: 1,
-    paddingHorizontal: spacing.medium,
-    paddingTop: 48,
-    paddingBottom: 12,
   },
-  content: { flex: 1, gap: spacing.small, maxWidth: 440, width: '100%' },
+  content: {
+    flex: 1,
+    gap: spacing.small,
+    maxWidth: 472,
+    width: '100%',
+    paddingHorizontal: spacing.medium,
+    paddingVertical: spacing.small,
+  },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    flexShrink: 0,
     gap: 10,
     justifyContent: 'space-between',
   },
-  title: { color: colors.ink, fontSize: 34, fontWeight: '900', lineHeight: 40 },
+  title: { color: colors.ink, flexShrink: 0, fontSize: 28, fontWeight: '900' },
+  scoreGroup: { flexBasis: 80, flexGrow: 1, minWidth: 0 },
+  compactNewGame: { width: '100%' },
   scoreLabel: {
     color: colors.mutedInk,
     fontSize: 10,
@@ -328,11 +347,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     minHeight: 44,
+    flexShrink: 0,
+    maxWidth: '100%',
     paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   primaryButtonText: { color: colors.white, fontSize: 16, fontWeight: '700' },
   pressed: { backgroundColor: colors.primaryPressed, opacity: 0.9 },
   statusPanel: {
+    flexShrink: 0,
     backgroundColor: colors.panel,
     borderRadius: 10,
     paddingHorizontal: 12,
@@ -341,6 +364,7 @@ const styles = StyleSheet.create({
   activeSetting: { color: colors.ink, fontSize: 14, fontWeight: '800' },
   milestone: { color: colors.mutedInk, fontSize: 14, marginTop: 2 },
   controlsButton: {
+    flexShrink: 0,
     alignItems: 'center',
     alignSelf: 'center',
     backgroundColor: colors.primary,
@@ -348,9 +372,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
     paddingHorizontal: 28,
+    paddingVertical: 8,
   },
-  moveStatus: { color: colors.mutedInk, fontSize: 12, textAlign: 'center' },
+  moveStatus: {
+    color: colors.mutedInk,
+    flexShrink: 0,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  idleMoveStatus: { opacity: 0 },
   gameOverPanel: {
+    flexShrink: 0,
+    flexWrap: 'wrap',
     alignItems: 'center',
     backgroundColor: colors.panel,
     borderRadius: 10,
