@@ -267,21 +267,6 @@ function GameContent() {
       >
         <Text style={styles.primaryButtonText}>Controls</Text>
       </Pressable>
-      {/* Keep the viewport stable while the move status appears. */}
-      <Text
-        accessible={moveResult !== null}
-        accessibilityElementsHidden={moveResult === null}
-        importantForAccessibility={
-          moveResult === null ? 'no-hide-descendants' : 'auto'
-        }
-        accessibilityLabel="Moving tiles. Directional moves are temporarily unavailable."
-        style={[
-          styles.moveStatus,
-          moveResult === null && styles.idleMoveStatus,
-        ]}
-      >
-        Moving tiles… Directional moves are temporarily unavailable.
-      </Text>
       {game.status === 'game-over' ? (
         <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
           <Text accessibilityRole="header" style={styles.gameOverTitle}>
@@ -383,13 +368,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 8,
   },
-  moveStatus: {
-    color: colors.mutedInk,
-    flexShrink: 0,
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  idleMoveStatus: { opacity: 0 },
   gameOverPanel: {
     flexShrink: 0,
     flexWrap: 'wrap',
