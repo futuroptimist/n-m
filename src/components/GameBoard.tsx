@@ -21,6 +21,7 @@ import {
   type GestureResponderEvent,
   type LayoutChangeEvent,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   tileValue,
@@ -77,6 +78,7 @@ export function GameBoard({
   pendingK,
 }: GameBoardProps) {
   const [viewportSize, setViewportSize] = useState(0);
+  const [availableSize, setAvailableSize] = useState(0);
   const [zoom, setZoom] = useState(FIT_ZOOM);
   const [position, setPosition] = useState<ViewportPosition>({ x: 0, y: 0 });
   const [inspectorRow, setInspectorRow] = useState(0);
@@ -288,109 +290,121 @@ export function GameBoard({
         {mode} · {Math.round(zoom * 100)}%
       </Text>
       <View
-        accessibilityLabel={`${game.sideLength} by ${game.sideLength} game board, ${mode}`}
-        onLayout={onLayout}
-        style={styles.viewport}
-        {...viewportResponder.panHandlers}
+        style={styles.boardSpace}
+        onLayout={({ nativeEvent: { layout } }) =>
+          setAvailableSize(Math.max(0, Math.min(layout.width, layout.height)))
+        }
       >
-        {viewportSize > 0 ? (
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={[
-              styles.board,
-              {
-                height: contentSize,
-                transform: [
-                  { translateX: clampedPosition.x },
-                  { translateY: clampedPosition.y },
-                ],
-                padding: renderedPadding,
-                width: contentSize,
-              },
-            ]}
-          >
-            {game.board
-              .slice(0, presentationSideLength)
-              .map((boardRow, rowIndex) => (
-                <View key={`row-${rowIndex}`} style={styles.row}>
-                  {boardRow
-                    .slice(0, presentationSideLength)
-                    .map((exponent, columnIndex) => {
-                      const cell =
-                        presentation.cells[
-                          rowIndex * presentationSideLength + columnIndex
-                        ];
-                      const isSpawn =
-                        spawn?.type === 'spawn' &&
-                        spawn.row === rowIndex &&
-                        spawn.column === columnIndex;
-                      return (
-                        <Tile
-                          exponent={exponent}
-                          gutter={renderedGutter}
-                          key={cell?.key}
-                          size={tileSize * zoom}
-                          style={
-                            cell?.visible === false
-                              ? { opacity: 0 }
-                              : isSpawn && moveResult !== null && !reduceMotion
-                                ? {
-                                    opacity: spawnProgress,
-                                    transform: [
-                                      {
-                                        scale: spawnProgress.interpolate({
-                                          inputRange: [0, 1],
-                                          outputRange: [0.7, 1],
-                                        }),
-                                      },
-                                    ],
-                                  }
-                                : undefined
-                          }
-                        />
-                      );
-                    })}
-                </View>
-              ))}
-            {sliding
-              ? motions.map((motion) => (
-                  <Animated.View
-                    key={motion.key}
-                    style={[
-                      styles.motionTile,
-                      {
-                        height: tileSize * zoom,
-                        left: 0,
-                        top: 0,
-                        transform: [
-                          {
-                            translateX: progress.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [motion.fromX, motion.toX],
-                            }),
-                          },
-                          {
-                            translateY: progress.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [motion.fromY, motion.toY],
-                            }),
-                          },
-                        ],
-                        width: tileSize * zoom,
-                      },
-                    ]}
-                  >
-                    <Tile
-                      exponent={motion.exponent}
-                      gutter={0}
-                      size={tileSize * zoom}
-                    />
-                  </Animated.View>
-                ))
-              : null}
-          </View>
-        ) : null}
+        <View
+          accessibilityLabel={`${game.sideLength} by ${game.sideLength} game board, ${mode}`}
+          onLayout={onLayout}
+          style={[
+            styles.viewport,
+            { width: availableSize, height: availableSize },
+          ]}
+          {...viewportResponder.panHandlers}
+        >
+          {viewportSize > 0 ? (
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={[
+                styles.board,
+                {
+                  height: contentSize,
+                  transform: [
+                    { translateX: clampedPosition.x },
+                    { translateY: clampedPosition.y },
+                  ],
+                  padding: renderedPadding,
+                  width: contentSize,
+                },
+              ]}
+            >
+              {game.board
+                .slice(0, presentationSideLength)
+                .map((boardRow, rowIndex) => (
+                  <View key={`row-${rowIndex}`} style={styles.row}>
+                    {boardRow
+                      .slice(0, presentationSideLength)
+                      .map((exponent, columnIndex) => {
+                        const cell =
+                          presentation.cells[
+                            rowIndex * presentationSideLength + columnIndex
+                          ];
+                        const isSpawn =
+                          spawn?.type === 'spawn' &&
+                          spawn.row === rowIndex &&
+                          spawn.column === columnIndex;
+                        return (
+                          <Tile
+                            exponent={exponent}
+                            gutter={renderedGutter}
+                            key={cell?.key}
+                            size={tileSize * zoom}
+                            style={
+                              cell?.visible === false
+                                ? { opacity: 0 }
+                                : isSpawn &&
+                                    moveResult !== null &&
+                                    !reduceMotion
+                                  ? {
+                                      opacity: spawnProgress,
+                                      transform: [
+                                        {
+                                          scale: spawnProgress.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [0.7, 1],
+                                          }),
+                                        },
+                                      ],
+                                    }
+                                  : undefined
+                            }
+                          />
+                        );
+                      })}
+                  </View>
+                ))}
+              {sliding
+                ? motions.map((motion) => (
+                    <Animated.View
+                      key={motion.key}
+                      style={[
+                        styles.motionTile,
+                        {
+                          height: tileSize * zoom,
+                          left: 0,
+                          top: 0,
+                          transform: [
+                            {
+                              translateX: progress.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [motion.fromX, motion.toX],
+                              }),
+                            },
+                            {
+                              translateY: progress.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [motion.fromY, motion.toY],
+                              }),
+                            },
+                          ],
+                          width: tileSize * zoom,
+                        },
+                      ]}
+                    >
+                      <Tile
+                        exponent={motion.exponent}
+                        gutter={0}
+                        size={tileSize * zoom}
+                      />
+                    </Animated.View>
+                  ))
+                : null}
+            </View>
+          ) : null}
+        </View>
       </View>
 
       <Modal
@@ -400,133 +414,190 @@ export function GameBoard({
         visible={controlsOpen}
       >
         <View style={styles.modalBackdrop}>
-          <View accessibilityViewIsModal style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text accessibilityRole="header" style={styles.modalTitle}>
-                Controls
-              </Text>
-              <BoardButton
-                label="Close controls"
-                onPress={onCloseControls}
-                text="Done"
-              />
-            </View>
-            <ScrollView contentContainerStyle={styles.modalContent}>
-              <Text style={styles.edgeText}>{edgeDescription(edges)}</Text>
-              <Text style={styles.hint}>
-                One finger moves tiles. Two fingers pan or pinch an enlarged
-                board.
-              </Text>
-              <View style={styles.controlRow}>
-                <BoardButton
-                  disabled={zoom <= FIT_ZOOM}
-                  label="Zoom board out"
-                  onPress={() => applyViewport(zoom - 0.25, position)}
-                  text="Zoom −"
-                />
-                <BoardButton
-                  disabled={zoom >= maximumZoom(game.sideLength, viewportSize)}
-                  label="Zoom board in"
-                  onPress={() => applyViewport(zoom + 0.25, position)}
-                  text="Zoom +"
-                />
-                <BoardButton
-                  label="Fit entire board"
-                  onPress={() => applyViewport(FIT_ZOOM, { x: 0, y: 0 })}
-                  text="Fit board"
-                />
-                <BoardButton
-                  label="Use touch-friendly board scale"
-                  onPress={() =>
-                    applyViewport(
-                      touchFriendlyZoom(game.sideLength, viewportSize),
-                      { x: 0, y: 0 },
-                    )
-                  }
-                  text="Touch scale"
-                />
-              </View>
-              <Text accessibilityRole="header" style={styles.inspectorTitle}>
-                Move tiles
-              </Text>
-              <View style={styles.controlRow}>
-                {(['up', 'left', 'down', 'right'] as const).map((direction) => (
+          <SafeAreaProvider>
+            <SafeAreaView style={styles.modalSafeArea}>
+              <View accessibilityViewIsModal style={styles.modalCard}>
+                <View style={styles.modalHeader}>
+                  <Text accessibilityRole="header" style={styles.modalTitle}>
+                    Controls
+                  </Text>
                   <BoardButton
-                    disabled={moveResult !== null}
-                    key={direction}
-                    label={`Move ${direction}`}
-                    onPress={() => onMove(direction)}
-                    text={direction}
+                    label="Close controls"
+                    onPress={onCloseControls}
+                    text="Done"
                   />
-                ))}
+                </View>
+                <ScrollView contentContainerStyle={styles.modalContent}>
+                  <View style={styles.controlSection}>
+                    <Text
+                      accessibilityRole="header"
+                      style={styles.inspectorTitle}
+                    >
+                      Viewport
+                    </Text>
+                    <Text style={styles.edgeText}>
+                      {edgeDescription(edges)}
+                    </Text>
+                    <Text style={styles.hint}>
+                      One finger moves tiles. Two fingers pan or pinch an
+                      enlarged board.
+                    </Text>
+                    <View style={styles.controlRow}>
+                      <BoardButton
+                        disabled={zoom <= FIT_ZOOM}
+                        label="Zoom board out"
+                        onPress={() => applyViewport(zoom - 0.25, position)}
+                        text="Zoom −"
+                      />
+                      <BoardButton
+                        disabled={
+                          zoom >= maximumZoom(game.sideLength, viewportSize)
+                        }
+                        label="Zoom board in"
+                        onPress={() => applyViewport(zoom + 0.25, position)}
+                        text="Zoom +"
+                      />
+                      <BoardButton
+                        label="Fit entire board"
+                        onPress={() => applyViewport(FIT_ZOOM, { x: 0, y: 0 })}
+                        text="Fit board"
+                      />
+                      <BoardButton
+                        label="Use touch-friendly board scale"
+                        onPress={() =>
+                          applyViewport(
+                            touchFriendlyZoom(game.sideLength, viewportSize),
+                            { x: 0, y: 0 },
+                          )
+                        }
+                        text="Touch scale"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.controlSection}>
+                    <Text
+                      accessibilityRole="header"
+                      style={styles.inspectorTitle}
+                    >
+                      Move tiles
+                    </Text>
+                    <View style={styles.directionPad}>
+                      <View style={styles.directionRow}>
+                        <BoardButton
+                          disabled={moveResult !== null}
+                          label="Move up"
+                          directional
+                          onPress={() => onMove('up')}
+                          text="up"
+                        />
+                      </View>
+                      <View style={styles.directionRow}>
+                        <BoardButton
+                          disabled={moveResult !== null}
+                          label="Move left"
+                          directional
+                          onPress={() => onMove('left')}
+                          text="left"
+                        />
+                        <BoardButton
+                          disabled={moveResult !== null}
+                          label="Move down"
+                          directional
+                          onPress={() => onMove('down')}
+                          text="down"
+                        />
+                        <BoardButton
+                          disabled={moveResult !== null}
+                          label="Move right"
+                          directional
+                          onPress={() => onMove('right')}
+                          text="right"
+                        />
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.controlSection}>
+                    <Text
+                      accessibilityRole="header"
+                      style={styles.inspectorTitle}
+                    >
+                      Board inspector
+                    </Text>
+                    <Text style={styles.inspectorValue}>
+                      {cellDescription(game.board[row][column], row, column)}
+                    </Text>
+                    <View style={styles.controlRow}>
+                      <BoardButton
+                        disabled={row === 0}
+                        label="Previous board row"
+                        onPress={() => setInspectorRow(row - 1)}
+                        text="Row −"
+                      />
+                      <BoardButton
+                        disabled={row === game.sideLength - 1}
+                        label="Next board row"
+                        onPress={() => setInspectorRow(row + 1)}
+                        text="Row +"
+                      />
+                    </View>
+                    <View style={styles.controlRow}>
+                      <BoardButton
+                        disabled={column === 0}
+                        label="Previous board column"
+                        onPress={() => setInspectorColumn(column - 1)}
+                        text="Column −"
+                      />
+                      <BoardButton
+                        disabled={column === game.sideLength - 1}
+                        label="Next board column"
+                        onPress={() => setInspectorColumn(column + 1)}
+                        text="Column +"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.controlSection}>
+                    <Text
+                      accessibilityRole="header"
+                      style={styles.inspectorTitle}
+                    >
+                      Next game setting
+                    </Text>
+                    <Text style={styles.hint}>
+                      Choose k for the next game. This run stays at k=
+                      {game.activeK}.
+                    </Text>
+                    <View style={styles.controlRow}>
+                      <BoardButton
+                        disabled={pendingK === 1}
+                        label="Decrease k for next game"
+                        onPress={() => onPendingKChange(pendingK - 1)}
+                        text="k −"
+                      />
+                      <Text
+                        accessible
+                        accessibilityLabel={`Next game k ${pendingK}`}
+                        style={styles.kValue}
+                      >
+                        k = {pendingK}
+                      </Text>
+                      <BoardButton
+                        disabled={pendingK === 10}
+                        label="Increase k for next game"
+                        onPress={() => onPendingKChange(pendingK + 1)}
+                        text="k +"
+                      />
+                    </View>
+                    {pendingK >= 5 ? (
+                      <Text style={styles.hint}>
+                        Higher k grows less often. With current 2/4 tile spawns,
+                        k values 5–10 cannot grow beyond 2×2.
+                      </Text>
+                    ) : null}
+                  </View>
+                </ScrollView>
               </View>
-              <Text accessibilityRole="header" style={styles.inspectorTitle}>
-                Board inspector
-              </Text>
-              <Text style={styles.inspectorValue}>
-                {cellDescription(game.board[row][column], row, column)}
-              </Text>
-              <View style={styles.controlRow}>
-                <BoardButton
-                  disabled={row === 0}
-                  label="Previous board row"
-                  onPress={() => setInspectorRow(row - 1)}
-                  text="Row −"
-                />
-                <BoardButton
-                  disabled={row === game.sideLength - 1}
-                  label="Next board row"
-                  onPress={() => setInspectorRow(row + 1)}
-                  text="Row +"
-                />
-                <BoardButton
-                  disabled={column === 0}
-                  label="Previous board column"
-                  onPress={() => setInspectorColumn(column - 1)}
-                  text="Column −"
-                />
-                <BoardButton
-                  disabled={column === game.sideLength - 1}
-                  label="Next board column"
-                  onPress={() => setInspectorColumn(column + 1)}
-                  text="Column +"
-                />
-              </View>
-              <Text accessibilityRole="header" style={styles.inspectorTitle}>
-                Next game setting
-              </Text>
-              <Text style={styles.hint}>
-                Choose k for the next game. This run stays at k={game.activeK}.
-              </Text>
-              <View style={styles.controlRow}>
-                <BoardButton
-                  disabled={pendingK === 1}
-                  label="Decrease k for next game"
-                  onPress={() => onPendingKChange(pendingK - 1)}
-                  text="k −"
-                />
-                <Text
-                  accessible
-                  accessibilityLabel={`Next game k ${pendingK}`}
-                  style={styles.kValue}
-                >
-                  k = {pendingK}
-                </Text>
-                <BoardButton
-                  disabled={pendingK === 10}
-                  label="Increase k for next game"
-                  onPress={() => onPendingKChange(pendingK + 1)}
-                  text="k +"
-                />
-              </View>
-              {pendingK >= 5 ? (
-                <Text style={styles.hint}>
-                  Higher k grows less often. With current 2/4 tile spawns, k
-                  values 5–10 cannot grow beyond 2×2.
-                </Text>
-              ) : null}
-            </ScrollView>
-          </View>
+            </SafeAreaView>
+          </SafeAreaProvider>
         </View>
       </Modal>
     </View>
@@ -580,11 +651,13 @@ function Tile({
 }
 
 function BoardButton({
+  directional = false,
   disabled = false,
   label,
   onPress,
   text,
 }: {
+  directional?: boolean;
   disabled?: boolean;
   label: string;
   onPress: () => void;
@@ -599,6 +672,7 @@ function BoardButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.controlButton,
+        directional && styles.directionButton,
         disabled && styles.disabledButton,
         pressed && !disabled && styles.pressed,
       ]}
@@ -611,15 +685,20 @@ function BoardButton({
 }
 
 const styles = StyleSheet.create({
-  section: { flexShrink: 1, gap: 4, width: '100%' },
-  modeText: { color: colors.mutedInk, fontSize: 12, fontWeight: '700' },
+  section: { flex: 1, minHeight: 0, gap: 4, width: '100%' },
+  boardSpace: { flex: 1, minHeight: 0, alignItems: 'center' },
+  modeText: {
+    color: colors.mutedInk,
+    flexShrink: 0,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   viewport: {
-    aspectRatio: 1,
+    flexShrink: 0,
     borderColor: colors.ink,
     borderRadius: 12,
     borderWidth: 2,
     overflow: 'hidden',
-    width: '100%',
   },
   board: { backgroundColor: colors.board, borderRadius: 10 },
   row: { flexDirection: 'row' },
@@ -642,6 +721,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
+  modalSafeArea: { flex: 1, justifyContent: 'flex-end' },
   modalCard: {
     backgroundColor: colors.panel,
     borderTopLeftRadius: 20,
@@ -650,12 +730,27 @@ const styles = StyleSheet.create({
     padding: spacing.medium,
   },
   modalHeader: {
+    flexShrink: 0,
+    flexWrap: 'wrap',
+    gap: spacing.small,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   modalTitle: { color: colors.ink, fontSize: 24, fontWeight: '900' },
   modalContent: { gap: 12, paddingBottom: 24, paddingTop: 12 },
+  controlSection: {
+    gap: spacing.small,
+    borderTopColor: colors.mutedInk,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 12,
+  },
+  directionPad: { gap: spacing.small },
+  directionRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.small,
+  },
   edgeText: { color: colors.ink, fontSize: 14, fontWeight: '700' },
   hint: { color: colors.mutedInk, fontSize: 14, lineHeight: 20 },
   controlRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.small },
@@ -665,14 +760,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     minHeight: 44,
+    minWidth: 44,
+    flexShrink: 0,
+    maxWidth: '100%',
     paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   controlText: {
     color: colors.white,
     fontSize: 14,
     fontWeight: '700',
     textTransform: 'capitalize',
+    textAlign: 'center',
   },
+  directionButton: { width: '30%' },
   disabledButton: { backgroundColor: '#d2cec7', borderWidth: 1 },
   disabledText: { color: '#706b64' },
   pressed: { backgroundColor: colors.primaryPressed, opacity: 0.9 },
