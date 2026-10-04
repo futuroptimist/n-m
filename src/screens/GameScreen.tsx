@@ -10,8 +10,9 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { GameBoard, PlatformSafeAreaView } from '../components/GameBoard';
+import { GameBoard } from '../components/GameBoard';
 import { selectMoveAnnouncement } from '../components/boardInteraction';
 import {
   createGame,
@@ -26,6 +27,16 @@ import { gameStorage } from '../storage/asyncStorageAdapter';
 import type { RecoveryReason } from '../storage/gameStorage';
 
 export function GameScreen() {
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.screen}>
+        <GameContent />
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+function GameContent() {
   const { width, fontScale } = useWindowDimensions();
   const compactHeader = width < 360 || fontScale > 1.2;
   const [pendingK, setPendingK] = useState(1);
@@ -192,98 +203,96 @@ export function GameScreen() {
   };
 
   return (
-    <PlatformSafeAreaView style={styles.screen}>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text
-            accessibilityLabel="n to the power of m"
-            accessibilityRole="header"
-            style={styles.title}
-          >
-            n^m
-          </Text>
-          <View
-            accessible
-            accessibilityLabel={`Score ${game.score.toString()}`}
-            style={styles.scoreGroup}
-          >
-            <Text style={styles.scoreLabel}>SCORE</Text>
-            <Text style={styles.score}>{game.score.toString()}</Text>
-          </View>
-          <Pressable
-            accessibilityLabel="Start a new game"
-            accessibilityRole="button"
-            onPress={requestNewGame}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              compactHeader && styles.compactNewGame,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text style={styles.primaryButtonText}>New game</Text>
-          </Pressable>
+    <View style={styles.content}>
+      <View style={styles.header}>
+        <Text
+          accessibilityLabel="n to the power of m"
+          accessibilityRole="header"
+          style={styles.title}
+        >
+          n^m
+        </Text>
+        <View
+          accessible
+          accessibilityLabel={`Score ${game.score.toString()}`}
+          style={styles.scoreGroup}
+        >
+          <Text style={styles.scoreLabel}>SCORE</Text>
+          <Text style={styles.score}>{game.score.toString()}</Text>
         </View>
-        <View style={styles.statusPanel}>
-          <Text style={styles.activeSetting}>Active k: {game.activeK}</Text>
-          <Text numberOfLines={2} style={styles.milestone}>
-            Next growth: merge {growth.nextExpansionTile.toString()} →{' '}
-            {growth.sideLength + 1}×{growth.sideLength + 1}
-          </Text>
-        </View>
-        {storageError === null ? null : (
-          <Text accessibilityLiveRegion="polite" style={styles.errorText}>
-            {storageError}
-          </Text>
-        )}
-        <GameBoard
-          controlsOpen={controlsOpen}
-          game={game}
-          key={boardSession}
-          moveResult={moveResult}
-          onAnimationComplete={finishAnimation}
-          onCloseControls={() => setControlsOpen(false)}
-          onMove={performMove}
-          onPendingKChange={setPendingK}
-          pendingK={pendingK}
-        />
         <Pressable
-          accessibilityLabel="Open game controls"
+          accessibilityLabel="Start a new game"
           accessibilityRole="button"
-          onPress={() => setControlsOpen(true)}
+          onPress={requestNewGame}
           style={({ pressed }) => [
-            styles.controlsButton,
+            styles.primaryButton,
+            compactHeader && styles.compactNewGame,
             pressed && styles.pressed,
           ]}
         >
-          <Text style={styles.primaryButtonText}>Controls</Text>
+          <Text style={styles.primaryButtonText}>New game</Text>
         </Pressable>
-        {/* Keep the viewport stable while the move status appears. */}
-        <Text
-          accessible={moveResult !== null}
-          accessibilityElementsHidden={moveResult === null}
-          importantForAccessibility={
-            moveResult === null ? 'no-hide-descendants' : 'auto'
-          }
-          accessibilityLabel="Moving tiles. Directional moves are temporarily unavailable."
-          style={[
-            styles.moveStatus,
-            moveResult === null && styles.idleMoveStatus,
-          ]}
-        >
-          Moving tiles… Directional moves are temporarily unavailable.
-        </Text>
-        {game.status === 'game-over' ? (
-          <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
-            <Text accessibilityRole="header" style={styles.gameOverTitle}>
-              Game over
-            </Text>
-            <Text style={styles.gameOverScore}>
-              Final score: {game.score.toString()}
-            </Text>
-          </View>
-        ) : null}
       </View>
-    </PlatformSafeAreaView>
+      <View style={styles.statusPanel}>
+        <Text style={styles.activeSetting}>Active k: {game.activeK}</Text>
+        <Text numberOfLines={2} style={styles.milestone}>
+          Next growth: merge {growth.nextExpansionTile.toString()} →{' '}
+          {growth.sideLength + 1}×{growth.sideLength + 1}
+        </Text>
+      </View>
+      {storageError === null ? null : (
+        <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+          {storageError}
+        </Text>
+      )}
+      <GameBoard
+        controlsOpen={controlsOpen}
+        game={game}
+        key={boardSession}
+        moveResult={moveResult}
+        onAnimationComplete={finishAnimation}
+        onCloseControls={() => setControlsOpen(false)}
+        onMove={performMove}
+        onPendingKChange={setPendingK}
+        pendingK={pendingK}
+      />
+      <Pressable
+        accessibilityLabel="Open game controls"
+        accessibilityRole="button"
+        onPress={() => setControlsOpen(true)}
+        style={({ pressed }) => [
+          styles.controlsButton,
+          pressed && styles.pressed,
+        ]}
+      >
+        <Text style={styles.primaryButtonText}>Controls</Text>
+      </Pressable>
+      {/* Keep the viewport stable while the move status appears. */}
+      <Text
+        accessible={moveResult !== null}
+        accessibilityElementsHidden={moveResult === null}
+        importantForAccessibility={
+          moveResult === null ? 'no-hide-descendants' : 'auto'
+        }
+        accessibilityLabel="Moving tiles. Directional moves are temporarily unavailable."
+        style={[
+          styles.moveStatus,
+          moveResult === null && styles.idleMoveStatus,
+        ]}
+      >
+        Moving tiles… Directional moves are temporarily unavailable.
+      </Text>
+      {game.status === 'game-over' ? (
+        <View accessibilityLiveRegion="polite" style={styles.gameOverPanel}>
+          <Text accessibilityRole="header" style={styles.gameOverTitle}>
+            Game over
+          </Text>
+          <Text style={styles.gameOverScore}>
+            Final score: {game.score.toString()}
+          </Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 

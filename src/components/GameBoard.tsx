@@ -13,9 +13,7 @@ import {
   Animated,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +21,7 @@ import {
   type GestureResponderEvent,
   type LayoutChangeEvent,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   tileValue,
@@ -50,17 +49,6 @@ import {
   visibleEdges,
   type ViewportPosition,
 } from './boardInteraction';
-
-// The public core SafeAreaView is iOS-only. RN 0.86 also ships this Android
-// native view, which applies system-bar and display-cutout WindowInsets.
-// Keep this adapter local while this cleanup cannot add a safe-area dependency.
-export const PlatformSafeAreaView: typeof SafeAreaView =
-  Platform.OS === 'android'
-    ? // Reuse RN's codegenerated component (including its Fabric view config).
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('react-native/Libraries/Components/SafeAreaView/RCTSafeAreaViewNativeComponent')
-        .default
-    : SafeAreaView;
 
 interface GameBoardProps {
   controlsOpen: boolean;
@@ -426,186 +414,190 @@ export function GameBoard({
         visible={controlsOpen}
       >
         <View style={styles.modalBackdrop}>
-          <PlatformSafeAreaView style={styles.modalSafeArea}>
-            <View accessibilityViewIsModal style={styles.modalCard}>
-              <View style={styles.modalHeader}>
-                <Text accessibilityRole="header" style={styles.modalTitle}>
-                  Controls
-                </Text>
-                <BoardButton
-                  label="Close controls"
-                  onPress={onCloseControls}
-                  text="Done"
-                />
-              </View>
-              <ScrollView contentContainerStyle={styles.modalContent}>
-                <View style={styles.controlSection}>
-                  <Text
-                    accessibilityRole="header"
-                    style={styles.inspectorTitle}
-                  >
-                    Viewport
+          <SafeAreaProvider>
+            <SafeAreaView style={styles.modalSafeArea}>
+              <View accessibilityViewIsModal style={styles.modalCard}>
+                <View style={styles.modalHeader}>
+                  <Text accessibilityRole="header" style={styles.modalTitle}>
+                    Controls
                   </Text>
-                  <Text style={styles.edgeText}>{edgeDescription(edges)}</Text>
-                  <Text style={styles.hint}>
-                    One finger moves tiles. Two fingers pan or pinch an enlarged
-                    board.
-                  </Text>
-                  <View style={styles.controlRow}>
-                    <BoardButton
-                      disabled={zoom <= FIT_ZOOM}
-                      label="Zoom board out"
-                      onPress={() => applyViewport(zoom - 0.25, position)}
-                      text="Zoom −"
-                    />
-                    <BoardButton
-                      disabled={
-                        zoom >= maximumZoom(game.sideLength, viewportSize)
-                      }
-                      label="Zoom board in"
-                      onPress={() => applyViewport(zoom + 0.25, position)}
-                      text="Zoom +"
-                    />
-                    <BoardButton
-                      label="Fit entire board"
-                      onPress={() => applyViewport(FIT_ZOOM, { x: 0, y: 0 })}
-                      text="Fit board"
-                    />
-                    <BoardButton
-                      label="Use touch-friendly board scale"
-                      onPress={() =>
-                        applyViewport(
-                          touchFriendlyZoom(game.sideLength, viewportSize),
-                          { x: 0, y: 0 },
-                        )
-                      }
-                      text="Touch scale"
-                    />
-                  </View>
+                  <BoardButton
+                    label="Close controls"
+                    onPress={onCloseControls}
+                    text="Done"
+                  />
                 </View>
-                <View style={styles.controlSection}>
-                  <Text
-                    accessibilityRole="header"
-                    style={styles.inspectorTitle}
-                  >
-                    Move tiles
-                  </Text>
-                  <View style={styles.directionPad}>
-                    <View style={styles.directionRow}>
-                      <BoardButton
-                        disabled={moveResult !== null}
-                        label="Move up"
-                        directional
-                        onPress={() => onMove('up')}
-                        text="up"
-                      />
-                    </View>
-                    <View style={styles.directionRow}>
-                      <BoardButton
-                        disabled={moveResult !== null}
-                        label="Move left"
-                        directional
-                        onPress={() => onMove('left')}
-                        text="left"
-                      />
-                      <BoardButton
-                        disabled={moveResult !== null}
-                        label="Move down"
-                        directional
-                        onPress={() => onMove('down')}
-                        text="down"
-                      />
-                      <BoardButton
-                        disabled={moveResult !== null}
-                        label="Move right"
-                        directional
-                        onPress={() => onMove('right')}
-                        text="right"
-                      />
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.controlSection}>
-                  <Text
-                    accessibilityRole="header"
-                    style={styles.inspectorTitle}
-                  >
-                    Board inspector
-                  </Text>
-                  <Text style={styles.inspectorValue}>
-                    {cellDescription(game.board[row][column], row, column)}
-                  </Text>
-                  <View style={styles.controlRow}>
-                    <BoardButton
-                      disabled={row === 0}
-                      label="Previous board row"
-                      onPress={() => setInspectorRow(row - 1)}
-                      text="Row −"
-                    />
-                    <BoardButton
-                      disabled={row === game.sideLength - 1}
-                      label="Next board row"
-                      onPress={() => setInspectorRow(row + 1)}
-                      text="Row +"
-                    />
-                  </View>
-                  <View style={styles.controlRow}>
-                    <BoardButton
-                      disabled={column === 0}
-                      label="Previous board column"
-                      onPress={() => setInspectorColumn(column - 1)}
-                      text="Column −"
-                    />
-                    <BoardButton
-                      disabled={column === game.sideLength - 1}
-                      label="Next board column"
-                      onPress={() => setInspectorColumn(column + 1)}
-                      text="Column +"
-                    />
-                  </View>
-                </View>
-                <View style={styles.controlSection}>
-                  <Text
-                    accessibilityRole="header"
-                    style={styles.inspectorTitle}
-                  >
-                    Next game setting
-                  </Text>
-                  <Text style={styles.hint}>
-                    Choose k for the next game. This run stays at k=
-                    {game.activeK}.
-                  </Text>
-                  <View style={styles.controlRow}>
-                    <BoardButton
-                      disabled={pendingK === 1}
-                      label="Decrease k for next game"
-                      onPress={() => onPendingKChange(pendingK - 1)}
-                      text="k −"
-                    />
+                <ScrollView contentContainerStyle={styles.modalContent}>
+                  <View style={styles.controlSection}>
                     <Text
-                      accessible
-                      accessibilityLabel={`Next game k ${pendingK}`}
-                      style={styles.kValue}
+                      accessibilityRole="header"
+                      style={styles.inspectorTitle}
                     >
-                      k = {pendingK}
+                      Viewport
                     </Text>
-                    <BoardButton
-                      disabled={pendingK === 10}
-                      label="Increase k for next game"
-                      onPress={() => onPendingKChange(pendingK + 1)}
-                      text="k +"
-                    />
-                  </View>
-                  {pendingK >= 5 ? (
+                    <Text style={styles.edgeText}>
+                      {edgeDescription(edges)}
+                    </Text>
                     <Text style={styles.hint}>
-                      Higher k grows less often. With current 2/4 tile spawns, k
-                      values 5–10 cannot grow beyond 2×2.
+                      One finger moves tiles. Two fingers pan or pinch an
+                      enlarged board.
                     </Text>
-                  ) : null}
-                </View>
-              </ScrollView>
-            </View>
-          </PlatformSafeAreaView>
+                    <View style={styles.controlRow}>
+                      <BoardButton
+                        disabled={zoom <= FIT_ZOOM}
+                        label="Zoom board out"
+                        onPress={() => applyViewport(zoom - 0.25, position)}
+                        text="Zoom −"
+                      />
+                      <BoardButton
+                        disabled={
+                          zoom >= maximumZoom(game.sideLength, viewportSize)
+                        }
+                        label="Zoom board in"
+                        onPress={() => applyViewport(zoom + 0.25, position)}
+                        text="Zoom +"
+                      />
+                      <BoardButton
+                        label="Fit entire board"
+                        onPress={() => applyViewport(FIT_ZOOM, { x: 0, y: 0 })}
+                        text="Fit board"
+                      />
+                      <BoardButton
+                        label="Use touch-friendly board scale"
+                        onPress={() =>
+                          applyViewport(
+                            touchFriendlyZoom(game.sideLength, viewportSize),
+                            { x: 0, y: 0 },
+                          )
+                        }
+                        text="Touch scale"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.controlSection}>
+                    <Text
+                      accessibilityRole="header"
+                      style={styles.inspectorTitle}
+                    >
+                      Move tiles
+                    </Text>
+                    <View style={styles.directionPad}>
+                      <View style={styles.directionRow}>
+                        <BoardButton
+                          disabled={moveResult !== null}
+                          label="Move up"
+                          directional
+                          onPress={() => onMove('up')}
+                          text="up"
+                        />
+                      </View>
+                      <View style={styles.directionRow}>
+                        <BoardButton
+                          disabled={moveResult !== null}
+                          label="Move left"
+                          directional
+                          onPress={() => onMove('left')}
+                          text="left"
+                        />
+                        <BoardButton
+                          disabled={moveResult !== null}
+                          label="Move down"
+                          directional
+                          onPress={() => onMove('down')}
+                          text="down"
+                        />
+                        <BoardButton
+                          disabled={moveResult !== null}
+                          label="Move right"
+                          directional
+                          onPress={() => onMove('right')}
+                          text="right"
+                        />
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.controlSection}>
+                    <Text
+                      accessibilityRole="header"
+                      style={styles.inspectorTitle}
+                    >
+                      Board inspector
+                    </Text>
+                    <Text style={styles.inspectorValue}>
+                      {cellDescription(game.board[row][column], row, column)}
+                    </Text>
+                    <View style={styles.controlRow}>
+                      <BoardButton
+                        disabled={row === 0}
+                        label="Previous board row"
+                        onPress={() => setInspectorRow(row - 1)}
+                        text="Row −"
+                      />
+                      <BoardButton
+                        disabled={row === game.sideLength - 1}
+                        label="Next board row"
+                        onPress={() => setInspectorRow(row + 1)}
+                        text="Row +"
+                      />
+                    </View>
+                    <View style={styles.controlRow}>
+                      <BoardButton
+                        disabled={column === 0}
+                        label="Previous board column"
+                        onPress={() => setInspectorColumn(column - 1)}
+                        text="Column −"
+                      />
+                      <BoardButton
+                        disabled={column === game.sideLength - 1}
+                        label="Next board column"
+                        onPress={() => setInspectorColumn(column + 1)}
+                        text="Column +"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.controlSection}>
+                    <Text
+                      accessibilityRole="header"
+                      style={styles.inspectorTitle}
+                    >
+                      Next game setting
+                    </Text>
+                    <Text style={styles.hint}>
+                      Choose k for the next game. This run stays at k=
+                      {game.activeK}.
+                    </Text>
+                    <View style={styles.controlRow}>
+                      <BoardButton
+                        disabled={pendingK === 1}
+                        label="Decrease k for next game"
+                        onPress={() => onPendingKChange(pendingK - 1)}
+                        text="k −"
+                      />
+                      <Text
+                        accessible
+                        accessibilityLabel={`Next game k ${pendingK}`}
+                        style={styles.kValue}
+                      >
+                        k = {pendingK}
+                      </Text>
+                      <BoardButton
+                        disabled={pendingK === 10}
+                        label="Increase k for next game"
+                        onPress={() => onPendingKChange(pendingK + 1)}
+                        text="k +"
+                      />
+                    </View>
+                    {pendingK >= 5 ? (
+                      <Text style={styles.hint}>
+                        Higher k grows less often. With current 2/4 tile spawns,
+                        k values 5–10 cannot grow beyond 2×2.
+                      </Text>
+                    ) : null}
+                  </View>
+                </ScrollView>
+              </View>
+            </SafeAreaView>
+          </SafeAreaProvider>
         </View>
       </Modal>
     </View>
