@@ -29,13 +29,19 @@ before making changes.
 
 ## Setup and quality checks
 
+For a guarded, one-command Mac setup and Release simulator launch without a
+running Metro server, see the
+[iOS Release workflow](docs/testing/ios-release-workflow.md). Use
+`npm run ios:doctor` for its read-only prerequisite check and
+`npm run ios:release -- --device <simulator-UDID>` to install, build and launch.
+
 Install Node.js 24 with nvm and Ruby 2.6 or newer, then install the locked
 dependencies with npm. Ruby must be available as `ruby` on `PATH`; it runs the
 generated CocoaPods hook fixture in the standard `npm run check` path.
 
 ```sh
-nvm install 24
-nvm use 24
+nvm install
+nvm use
 npm ci
 ```
 
