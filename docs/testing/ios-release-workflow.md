@@ -18,6 +18,11 @@ diagnoses missing tools but never installs system tools, accepts licenses, or
 changes signing settings. An Apple developer account is not required for the
 simulator.
 
+Before Expo launch, generated entitlement files are parsed with macOS `plutil`;
+nonempty entitlements stop the workflow because some capabilities cause Expo to
+configure signing even for simulator builds. This workflow supports the current
+app's empty entitlement set only.
+
 Use the project's patched Node pin with your existing nvm installation:
 
 ```sh

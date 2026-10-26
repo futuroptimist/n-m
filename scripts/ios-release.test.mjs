@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   buildSteps,
+  assertUnsignedSimulator,
   inspect,
   prerequisites,
   run,
@@ -231,6 +232,24 @@ test('process errors propagate', () => {
     () => run(process.execPath, ['-e', 'process.exit(7)']),
     /failed \(7\)/,
   );
+});
+
+test('nonempty or invalid entitlements stop before Expo can configure signing', (t) => {
+  const f = fixture(t);
+  fs.mkdirSync(path.join(f.cwd, 'ios'));
+  fs.writeFileSync(
+    path.join(f.cwd, 'ios', 'app.entitlements'),
+    'plist fixture',
+  );
+  assert.doesNotThrow(() => assertUnsignedSimulator(f.cwd, () => '{}'));
+  for (const json of [
+    '{"com.apple.developer.associated-domains":[]}',
+    '{"com.apple.developer.applesignin":["Default"]}',
+    'null',
+    'invalid',
+  ]) {
+    assert.throws(() => assertUnsignedSimulator(f.cwd, () => json));
+  }
 });
 
 test('a successful setup command that dirties tracked files stops the pipeline', (t) => {

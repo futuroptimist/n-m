@@ -209,6 +209,29 @@ export function buildSteps(fresh, device) {
   ];
 }
 
+export function assertUnsignedSimulator(cwd, exec) {
+  for (const [name] of snapshot(path.join(cwd, 'ios'))) {
+    if (!name.endsWith('.entitlements')) continue;
+    const entitlements = JSON.parse(
+      exec('plutil', [
+        '-convert',
+        'json',
+        '-o',
+        '-',
+        '--',
+        path.join(cwd, 'ios', name),
+      ]),
+    );
+    // Expo can configure signing even for a simulator with certain entitlements.
+    // This workflow supports the current app's empty entitlement set only.
+    if (!entitlements || Object.keys(entitlements).length) {
+      throw new Error(
+        'Nonempty iOS entitlements require a separately reviewed signing workflow. Stopped before Expo launch.',
+      );
+    }
+  }
+}
+
 export function workflow({
   cwd = root,
   exec = run,
@@ -240,6 +263,8 @@ export function workflow({
   );
   if (mode === 'doctor') return;
   for (const [command, argv, relative] of buildSteps(before.fresh, device)) {
+    if (command === 'npm' && argv[0] === 'run')
+      assertUnsignedSimulator(cwd, invoke);
     log(`Running ${command} ${argv.join(' ')}`);
     const output = invoke(command, argv, relative);
     if (output) log(output);
