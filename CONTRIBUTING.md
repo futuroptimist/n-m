@@ -14,8 +14,8 @@ mandatory iOS signing regression test executes a generated CocoaPods hook as
 part of `npm run check`.
 
 ```sh
-nvm install 24
-nvm use 24
+nvm install
+nvm use
 npm ci
 npm run check
 npx expo config --type public
@@ -49,6 +49,12 @@ Do not commit `.env` files, API tokens, signing certificates, provisioning
 profiles, keystores, or passwords.
 
 ## Mobile development
+
+The [iOS Release simulator workflow](docs/testing/ios-release-workflow.md)
+provides an owner command for locked dependency setup, guarded native generation
+and Release launch, plus a read-only doctor. Read its side effects and recovery
+instructions before running it. The project's `.nvmrc` pins patched Node
+24.22.1.
 
 Expo is the mobile iteration environment. Test interaction changes on
 representative iOS and Android devices or simulators; iOS native/simulator work
