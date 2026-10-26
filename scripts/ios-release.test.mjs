@@ -234,6 +234,19 @@ test('process errors propagate', () => {
   );
 });
 
+test('documented environment examples are allowed but actual overrides are blocked', (t) => {
+  const f = fixture(t);
+  for (const name of ['.env.example', '.env.production.example']) {
+    fs.writeFileSync(path.join(f.cwd, name), 'EXAMPLE=value');
+  }
+  assert.equal(inspect(f.cwd, f.exec).fresh, true);
+  for (const name of ['.env', '.env.local', '.env.production']) {
+    fs.writeFileSync(path.join(f.cwd, name), 'OVERRIDE=value');
+    assert.throws(() => inspect(f.cwd, f.exec), /environment files/);
+    fs.unlinkSync(path.join(f.cwd, name));
+  }
+});
+
 test('nonempty or invalid entitlements stop before Expo can configure signing', (t) => {
   const f = fixture(t);
   fs.mkdirSync(path.join(f.cwd, 'ios'));

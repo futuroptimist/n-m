@@ -148,7 +148,10 @@ export function inspect(cwd, exec) {
     );
   const inputs = exec('git', ['rev-parse', 'HEAD']);
   for (const name of fs.readdirSync(cwd)) {
-    if (name === '.env' || name.startsWith('.env.'))
+    if (
+      (name === '.env' || name.startsWith('.env.')) &&
+      !name.endsWith('.example')
+    )
       throw new Error(
         'Local environment files may alter Expo config. Use a clean checkout without .env files.',
       );
