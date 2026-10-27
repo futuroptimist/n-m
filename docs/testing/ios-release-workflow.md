@@ -13,10 +13,11 @@ TestFlight.
 Install full Xcode and an iOS simulator runtime using Xcode Settings >
 Components. Open Xcode yourself to complete the license and first-launch setup,
 and select its Command Line Tools under Settings > Locations. Install a working
-CocoaPods `pod` command using your preferred Ruby/package manager. The workflow
-diagnoses missing tools but never installs system tools, accepts licenses, or
-changes signing settings. An Apple developer account is not required for the
-simulator.
+CocoaPods `pod` command using your preferred Ruby/package manager. The wrapper
+diagnoses missing tools without invoking system-tool installation,
+license-acceptance, or signing-configuration commands. Apple tools it invokes
+may perform initialization, as described below. An Apple developer account is
+not required for the simulator.
 
 Before Expo launch, generated entitlement files are parsed with macOS `plutil`;
 nonempty entitlements stop the workflow because some capabilities cause Expo to
@@ -41,7 +42,7 @@ exactly one available iOS simulator, `--device` may be omitted. Multiple
 simulators require an explicit UDID, including when only one is already booted.
 Names, physical-device identifiers and unavailable runtimes are rejected.
 
-Run the read-only preflight separately when diagnosing setup:
+Run the prerequisite checks separately when diagnosing setup:
 
 ```sh
 npm run ios:doctor -- --device <simulator-UDID>
@@ -49,9 +50,17 @@ npm run ios:doctor -- --device <simulator-UDID>
 
 Doctor checks Node, Git, npm, the active Xcode developer directory, Xcode
 first-launch status, simulator SDK/runtime, CocoaPods and workspace safety. It
-does not install packages, generate native files, boot a simulator or write a
-state file. A successful doctor is prerequisite evidence, not proof a native
-build will succeed; compile/Pod failures still stop the launch.
+runs `xcodebuild -checkFirstLaunchStatus` before the `xcrun` SDK and simulator
+queries; a failed readiness check stops execution.
+
+The doctor branch does not invoke dependency installation, native generation,
+simulator boot, or app installation commands, and does not write the workflow
+state file. These limits describe the wrapper's requests, not a guarantee that
+underlying tools are free of side effects: Apple tools may initialize services,
+components, or caches even during queries. A successful first-launch check does
+not establish that subsequent probes perform no writes or initialization. A
+successful doctor is prerequisite evidence, not proof a native build will
+succeed; compile/Pod failures still stop the launch.
 
 ## Side effects and safe reruns
 
