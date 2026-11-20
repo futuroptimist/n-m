@@ -33,6 +33,21 @@ development builds similarly require the Android SDK and an emulator or device.
 These commands generate native projects through Expo CNG; do not commit the
 generated `ios/` or `android/` directories.
 
+## Pull request coverage
+
+Run `npm run coverage` to generate `coverage/lcov.info` with Node's test runner.
+The report covers TypeScript exercised by the engine, storage,
+board-interaction, and theme unit tests. It does not measure React Native
+rendering, native iOS or Android execution, or device behavior. Run the normal
+checks and applicable device tests separately.
+
+CI reports coverage on trusted pushes to `main` and same-repository pull
+requests, except Dependabot. Public fork pull requests use the Codecov action
+without a token. Coverage reporting is advisory and does not replace the test
+gate. If the repository has not been activated in Codecov, a maintainer needs to
+activate it and, when required by the Codecov organization, configure the
+repository's `CODECOV_TOKEN` Actions secret. Do not share the token with forks.
+
 ## Making a contribution
 
 1. Read [AGENTS.md](AGENTS.md) and the
