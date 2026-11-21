@@ -22,3 +22,38 @@ jobs:
         run: npm ci
       - name: Check formatting and Markdown
         run: npm run check
+      - name: Generate unit coverage
+        id: coverage
+        if:
+          github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        continue-on-error: true
+        run: |
+          npm run coverage
+          test -s coverage/lcov.info
+      - name: Upload coverage from trusted branches
+        if: >-
+          steps.coverage.outcome == 'success' && github.actor !=
+          'dependabot[bot]' && ((github.event_name == 'push' && github.ref ==
+          'refs/heads/main') ||
+            (github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository
+          &&
+            github.event.pull_request.user.login != 'dependabot[bot]'))
+        continue-on-error: true
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          disable_search: true
+          fail_ci_if_error: false
+      - name: Upload coverage from public forks without a token
+        if: >-
+          steps.coverage.outcome == 'success' && github.event_name ==
+          'pull_request' && github.event.repository.private == false &&
+          github.event.pull_request.head.repo.full_name != github.repository
+        continue-on-error: true
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: coverage/lcov.info
+          disable_search: true
+          fail_ci_if_error: false
